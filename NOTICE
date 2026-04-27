@@ -1,0 +1,9 @@
+SanchoAiIME
+Copyright 2026 SanchoAiIME contributors
+
+This product includes documentation and design notes for an AI-native input
+method architecture. Third-party components, model weights, external tools,
+and imported user dictionaries are governed by their own licenses and terms.
+
+See THIRD_PARTY_NOTICES.md and MODEL_LICENSES.md before distributing builds
+that bundle dependencies, model artifacts, or conversion tools.
