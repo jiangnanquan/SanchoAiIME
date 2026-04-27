@@ -1,0 +1,17 @@
+{
+  "name": "sancho-ai-ime",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-native personal input method project.",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "node --test packages/*/test/*.test.js",
+    "release:check": "node scripts/check-release-gate.js"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

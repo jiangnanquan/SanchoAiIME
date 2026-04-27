@@ -1,0 +1,19 @@
+{
+  "entries": [
+    {
+      "surface": "Sancho quick dictionary",
+      "code": "sqd",
+      "weight": 99
+    },
+    {
+      "surface": "Qwen local prediction",
+      "code": "qwp",
+      "weight": 90
+    },
+    {
+      "surface": "DeepSeek teacher analysis",
+      "code": "dta",
+      "weight": 90
+    }
+  ]
+}
