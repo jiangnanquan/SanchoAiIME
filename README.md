@@ -110,9 +110,14 @@ Qwen baseline 由 `sancho-model-orchestrator` 管理 manifest、下载目录和 
 sancho-model-orchestrator models plan --model qwen3.5-0.8b
 sancho-model-orchestrator models bootstrap --manifest qwen.manifest.json --allow-network
 sancho-model-orchestrator benchmark run --manifest qwen.manifest.json --runner llama-cli -- --model '{modelDir}/model.gguf' --prompt '{prompt}'
+sancho-model-orchestrator maintenance audit --manifest qwen.manifest.json
+sancho-model-orchestrator maintenance snapshot --manifest qwen.manifest.json --snapshot-id before-maintenance
+sancho-model-orchestrator maintenance diff --manifest qwen.manifest.json --snapshot-id before-maintenance
+sancho-model-orchestrator maintenance rollback --manifest qwen.manifest.json --snapshot-id before-maintenance --dry-run
 ```
 
 远程下载默认关闭，开启下载时每个 artifact 默认需要 `sha256`。所有模型文件必须写入 `SANCHO_MODEL_DIR`、`SANCHO_RUNTIME_DIR/models` 或 ignored `models/`，不能提交到 git。
+维护 snapshot 默认写在模型目录下的 `.sancho-maintenance/snapshots/`，仍属于 runtime data，不能提交。
 
 ## 大模型维护任务
 

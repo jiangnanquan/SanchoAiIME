@@ -16,3 +16,9 @@ export {
   formatBenchmarkResult,
   runModelBenchmark
 } from "./benchmark.js";
+export {
+  auditModelRuntime,
+  createModelSnapshot,
+  diffModelSnapshot,
+  rollbackModelSnapshot
+} from "./maintenance.js";

@@ -11,11 +11,21 @@ import {
   formatBenchmarkResult,
   runModelBenchmark
 } from "./benchmark.js";
+import {
+  auditModelRuntime,
+  createModelSnapshot,
+  diffModelSnapshot,
+  rollbackModelSnapshot
+} from "./maintenance.js";
 
 const HELP = `Usage:
   sancho-model-orchestrator models plan [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path]
   sancho-model-orchestrator models bootstrap [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path] [--dry-run] [--allow-network] [--allow-unverified]
   sancho-model-orchestrator benchmark run [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path] [--runner command] [--iterations n] [--warmup n] [--timeout-ms n] [--prompt text] [-- <runner args>]
+  sancho-model-orchestrator maintenance audit [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path]
+  sancho-model-orchestrator maintenance snapshot [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path] [--snapshot-id id] [--snapshot-dir path]
+  sancho-model-orchestrator maintenance diff [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path] --snapshot-id id [--snapshot-dir path]
+  sancho-model-orchestrator maintenance rollback [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path] --snapshot-id id [--snapshot-dir path] [--dry-run]
 
 Model files are stored under SANCHO_MODEL_DIR, SANCHO_RUNTIME_DIR/models, or
 the platform default runtime model directory. They are never written into
@@ -37,6 +47,10 @@ export async function runCli(argv, streams = {}) {
 
   if (command === "benchmark") {
     return await runBenchmarkCommand(subcommand, rest, { stdout });
+  }
+
+  if (command === "maintenance") {
+    return await runMaintenanceCommand(subcommand, rest, { stdout });
   }
 
   throw new Error(`Unknown command: ${command}\n\n${HELP}`);
@@ -90,6 +104,45 @@ async function runBenchmarkCommand(subcommand, args, streams) {
   });
   streams.stdout.write(formatBenchmarkResult(result));
   return 0;
+}
+
+async function runMaintenanceCommand(subcommand, args, streams) {
+  const { options } = parseOptions(args);
+  const manifest = await loadManifestFromOptions(options);
+  const sharedOptions = {
+    modelsDir: options["models-dir"] ?? defaultModelsDir(),
+    snapshotId: options["snapshot-id"],
+    snapshotDir: options["snapshot-dir"]
+  };
+
+  if (subcommand === "audit") {
+    const result = await auditModelRuntime(manifest, sharedOptions);
+    streams.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return 0;
+  }
+
+  if (subcommand === "snapshot") {
+    const result = await createModelSnapshot(manifest, sharedOptions);
+    streams.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return 0;
+  }
+
+  if (subcommand === "diff") {
+    const result = await diffModelSnapshot(manifest, sharedOptions);
+    streams.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return 0;
+  }
+
+  if (subcommand === "rollback") {
+    const result = await rollbackModelSnapshot(manifest, {
+      ...sharedOptions,
+      dryRun: Boolean(options["dry-run"])
+    });
+    streams.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return 0;
+  }
+
+  throw new Error(`Unknown maintenance command: ${subcommand}\n\n${HELP}`);
 }
 
 async function loadManifestFromOptions(options) {

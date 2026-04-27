@@ -34,6 +34,21 @@ Run a benchmark through an external local runner:
 sancho-model-orchestrator benchmark run --manifest qwen.manifest.json --runner llama-cli -- --model '{modelDir}/model.gguf' --prompt '{prompt}'
 ```
 
+Audit runtime model state and create a rollback point before a maintenance job:
+
+```sh
+sancho-model-orchestrator maintenance audit --manifest qwen.manifest.json
+sancho-model-orchestrator maintenance snapshot --manifest qwen.manifest.json --snapshot-id before-prune
+```
+
+Compare or restore after a maintenance job:
+
+```sh
+sancho-model-orchestrator maintenance diff --manifest qwen.manifest.json --snapshot-id before-prune
+sancho-model-orchestrator maintenance rollback --manifest qwen.manifest.json --snapshot-id before-prune --dry-run
+sancho-model-orchestrator maintenance rollback --manifest qwen.manifest.json --snapshot-id before-prune
+```
+
 Benchmark runner args support placeholders:
 
 | Placeholder | Value |
@@ -51,3 +66,8 @@ include a `sha256` digest unless `--allow-unverified` is explicitly passed.
 
 The package writes `sancho-model.lock.json` next to downloaded artifacts. That
 file is runtime state and must not be committed.
+
+Maintenance snapshots are written under
+`.sancho-maintenance/snapshots/` inside the resolved model directory by
+default. Snapshot copies prefer filesystem clone support and fall back to normal
+file copies, so rollback artifacts remain runtime data and must stay out of git.
