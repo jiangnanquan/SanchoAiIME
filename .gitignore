@@ -17,6 +17,13 @@ ime_history.jsonl
 data/
 logs/
 models/
+*.bin
+*.gguf
+*.mlmodel
+*.onnx
+*.pt
+*.pth
+*.safetensors
 *.duckdb
 *.duckdb.wal
 

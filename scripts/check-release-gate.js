@@ -14,6 +14,13 @@ const requiredGitignoreEntries = [
   "data/",
   "logs/",
   "models/",
+  "*.bin",
+  "*.gguf",
+  "*.mlmodel",
+  "*.onnx",
+  "*.pt",
+  "*.pth",
+  "*.safetensors",
   "*.duckdb",
   "*.jsonl"
 ];
@@ -21,7 +28,7 @@ const requiredGitignoreEntries = [
 const forbiddenTrackedPatterns = [
   /\.duckdb(?:\.wal)?$/,
   /\.jsonl$/,
-  /\.(?:gguf|safetensors|onnx|pt|pth)$/
+  /\.(?:bin|gguf|mlmodel|onnx|pt|pth|safetensors)$/
 ];
 
 const secretValuePatterns = [

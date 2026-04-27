@@ -5,7 +5,7 @@ currently include model weights.
 
 | Model | Intended role | License / Terms | Distribution stance |
 | --- | --- | --- | --- |
-| Qwen3.5-0.8B | Local realtime prediction baseline | Apache-2.0 model card | Optional download or bundle with LICENSE/NOTICE |
+| Qwen3.5-0.8B | Local realtime prediction baseline | Apache-2.0 model card | Built-in manifest only; optional user download into ignored model directory |
 | Gemma 4 E2B/E4B | Local model alternatives | Apache-2.0 model card | Optional download or bundle with LICENSE/NOTICE |
 | DeepSeek V4 Flash API | Offline cloud teacher and maintenance jobs | DeepSeek Open Platform terms | User-provided API key; no weights bundled |
 

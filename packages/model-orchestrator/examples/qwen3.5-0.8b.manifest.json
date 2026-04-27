@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "qwen3.5-0.8b",
+  "name": "Qwen3.5-0.8B",
+  "role": "local-realtime-predictor",
+  "source": {
+    "type": "huggingface",
+    "repository": "Qwen/Qwen3.5-0.8B",
+    "url": "https://huggingface.co/Qwen/Qwen3.5-0.8B",
+    "license": "Apache-2.0"
+  },
+  "storage": {
+    "directory": "qwen3.5-0.8b"
+  },
+  "artifacts": [],
+  "benchmark": {
+    "prompt": "Sancho local predictor health check. Reply with OK.",
+    "iterations": 3,
+    "warmup": 1,
+    "timeoutMs": 30000
+  }
+}
