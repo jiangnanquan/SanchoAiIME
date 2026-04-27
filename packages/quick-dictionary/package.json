@@ -6,6 +6,7 @@
   "license": "Apache-2.0",
   "exports": {
     ".": "./src/index.js",
+    "./actions": "./src/actions.js",
     "./custom-phrase": "./src/custom-phrase.js"
   },
   "bin": {
