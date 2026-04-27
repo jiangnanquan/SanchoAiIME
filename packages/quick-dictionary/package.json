@@ -1,0 +1,20 @@
+{
+  "name": "@sancho-ai-ime/quick-dictionary",
+  "version": "0.1.0",
+  "description": "Managed-region writer for Rime custom_phrase.txt quick dictionary entries.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": "./src/index.js",
+    "./custom-phrase": "./src/custom-phrase.js"
+  },
+  "bin": {
+    "sancho-quick-dictionary": "./bin/sancho-quick-dictionary.js"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
