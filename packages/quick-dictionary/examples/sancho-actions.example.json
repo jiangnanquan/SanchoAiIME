@@ -1,0 +1,56 @@
+{
+  "profiles": [
+    {
+      "id": "sanchoexo-codex-deepseek",
+      "label": "SanchoExo / Codex / DeepSeek",
+      "cwd": "/Users/jnq/Dev/Private/SanchoExo",
+      "command": "codex",
+      "args": [],
+      "env": {
+        "OPENAI_BASE_URL": "https://api.deepseek.com",
+        "OPENAI_MODEL": "deepseek-v4-flash"
+      },
+      "inheritEnv": true
+    },
+    {
+      "id": "opencode-qwen-local",
+      "label": "OpenCode / Local Qwen",
+      "command": "opencode",
+      "args": [],
+      "env": {
+        "OPENAI_BASE_URL": "http://127.0.0.1:8000/v1",
+        "OPENAI_MODEL": "qwen3.5-0.8b-local"
+      },
+      "inheritEnv": true
+    }
+  ],
+  "actions": [
+    {
+      "id": "sanchoexo.codex.deepseek",
+      "code": "cds",
+      "label": "SanchoExo + Codex + DeepSeek",
+      "kind": "profile_switch",
+      "profile": "sanchoexo-codex-deepseek",
+      "insertPreview": "SanchoExo Codex DeepSeek",
+      "weight": 99
+    },
+    {
+      "id": "opencode.qwen.local",
+      "code": "ops",
+      "label": "OpenCode + Local Qwen",
+      "kind": "profile_switch",
+      "profile": "opencode-qwen-local",
+      "insertPreview": "OpenCode Local Qwen",
+      "weight": 95
+    },
+    {
+      "id": "insert.deepseek.teacher",
+      "code": "dsf",
+      "label": "DeepSeek teacher analysis",
+      "kind": "insert_text",
+      "text": "DeepSeek teacher analysis",
+      "insertPreview": "DeepSeek teacher analysis",
+      "weight": 90
+    }
+  ]
+}
