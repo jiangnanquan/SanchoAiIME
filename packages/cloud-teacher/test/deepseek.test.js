@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import {
+  appendDeepSeekAuditLog,
+  buildDeepSeekAuditRecord,
   buildDeepSeekDryRun,
   callDeepSeekChat,
   DEEPSEEK_API_KEY_ENV,
@@ -166,6 +171,106 @@ test("dry-run plans include request shape without credential values", async () =
   assert.equal(dryRun.credential.source, "env");
   assert.equal(dryRun.requestBody.model, "deepseek-v4-flash");
   assert.equal(JSON.stringify(dryRun).includes("unit-test-env-key"), false);
+});
+
+test("dry-run plans report budget usage without exposing prompt text as audit data", async () => {
+  const dryRun = await buildDeepSeekDryRun(
+    {
+      messages: [
+        { role: "user", content: "private lexicon phrase" }
+      ],
+      maxTokens: 64
+    },
+    {
+      env: {
+        [DEEPSEEK_API_KEY_ENV]: "unit-test-env-key"
+      },
+      budget: {
+        maxInputChars: 128,
+        maxOutputTokens: 128
+      }
+    }
+  );
+
+  assert.equal(dryRun.budget.allowed, true);
+  assert.equal(dryRun.budget.usage.inputChars, "private lexicon phrase".length);
+  assert.equal(dryRun.budget.usage.maxOutputTokens, 64);
+  assert.deepEqual(dryRun.budget.violations, []);
+});
+
+test("blocks DeepSeek chat before fetch when budget limits are exceeded", async () => {
+  await assert.rejects(
+    () => callDeepSeekChat(
+      {
+        messages: [
+          { role: "user", content: "too many prompt characters" }
+        ],
+        maxTokens: 256
+      },
+      {
+        env: {
+          [DEEPSEEK_API_KEY_ENV]: "unit-test-env-key"
+        },
+        allowNetwork: true,
+        budget: {
+          maxInputChars: 10,
+          maxOutputTokens: 128
+        },
+        fetchImpl() {
+          throw new Error("fetch should not be called");
+        }
+      }
+    ),
+    /DeepSeek budget exceeded/
+  );
+});
+
+test("writes DeepSeek audit logs without prompt, output, or credential values", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "sancho-deepseek-audit-"));
+  const auditLogPath = join(directory, "deepseek-audit.jsonl");
+
+  try {
+    const dryRun = await buildDeepSeekDryRun(
+      {
+        messages: [
+          { role: "user", content: "private lexicon phrase" }
+        ],
+        maxTokens: 32
+      },
+      {
+        env: {
+          [DEEPSEEK_API_KEY_ENV]: "unit-test-env-key"
+        },
+        budget: {
+          maxInputChars: 200,
+          maxOutputTokens: 64
+        }
+      }
+    );
+    const record = buildDeepSeekAuditRecord({
+      request: dryRun,
+      result: {
+        responseId: "response-fixture",
+        finishReason: "stop",
+        usage: { total_tokens: 12 },
+        outputText: "teacher output should stay out of audit logs"
+      },
+      status: "success",
+      generatedAt: "2026-04-28T00:00:00.000Z"
+    });
+
+    await appendDeepSeekAuditLog(auditLogPath, record);
+
+    const line = await readFile(auditLogPath, "utf8");
+    const parsed = JSON.parse(line);
+    assert.equal(parsed.schema, "sancho.deepseek.audit.v1");
+    assert.equal(parsed.response.responseId, "response-fixture");
+    assert.equal(line.includes("unit-test-env-key"), false);
+    assert.equal(line.includes("private lexicon phrase"), false);
+    assert.equal(line.includes("teacher output should stay out"), false);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test("CLI reports DeepSeek status and dry-run output without secrets", async () => {
