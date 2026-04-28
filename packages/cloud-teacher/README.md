@@ -39,14 +39,23 @@ sancho-cloud-teacher deepseek status
 Preview the request shape without sending it:
 
 ```sh
-sancho-cloud-teacher deepseek dry-run --message "Analyze these Rime TSV rows."
+sancho-cloud-teacher deepseek dry-run --message "Analyze these Rime TSV rows." --max-tokens 256 --budget-input-chars 4000 --budget-output-tokens 512
 ```
 
 Call DeepSeek V4 Flash only when network access is explicitly enabled:
 
 ```sh
-sancho-cloud-teacher deepseek chat --message "Analyze these Rime TSV rows." --allow-network
+sancho-cloud-teacher deepseek chat --message "Analyze these Rime TSV rows." --max-tokens 256 --budget-input-chars 4000 --budget-output-tokens 512 --audit-log data/deepseek-audit.jsonl --allow-network
 ```
 
 Network calls return redacted metadata, usage, and the assistant text. They do
 not return or print credential values.
+
+Budget flags fail closed before any fetch call. When `--budget-output-tokens`
+is set, the request must also set `--max-tokens` so the maximum completion size
+is explicit.
+
+Audit logs are JSONL records intended for ignored runtime directories such as
+`data/` or `logs/`. They include provider, model, credential source, prompt
+hash, character/token counts, budget status, response id, finish reason, and
+usage. They do not include prompt text, assistant output, or credential values.

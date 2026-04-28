@@ -10,8 +10,8 @@ import {
 
 const HELP = `Usage:
   sancho-cloud-teacher deepseek status
-  sancho-cloud-teacher deepseek dry-run --message <text> [--system <text>] [--max-tokens n] [--temperature n]
-  sancho-cloud-teacher deepseek chat --message <text> [--system <text>] [--allow-network] [--max-tokens n] [--temperature n]
+  sancho-cloud-teacher deepseek dry-run --message <text> [--system <text>] [--max-tokens n] [--temperature n] [--budget-input-chars n] [--budget-output-tokens n]
+  sancho-cloud-teacher deepseek chat --message <text> [--system <text>] [--allow-network] [--max-tokens n] [--temperature n] [--budget-input-chars n] [--budget-output-tokens n] [--audit-log path]
 
 Credentials are read only from DEEPSEEK_API_KEY or macOS Keychain service
 "SanchoAiIME DeepSeek API Key". CLI output never prints credential values.
@@ -57,7 +57,10 @@ async function runDeepSeekCommand(args, runtime) {
   if (subcommand === "dry-run") {
     const dryRun = await buildDeepSeekDryRun(
       buildChatInput(options),
-      credentialOptions
+      {
+        ...credentialOptions,
+        budget: buildBudget(options)
+      }
     );
     runtime.stdout.write(`${JSON.stringify(dryRun, null, 2)}\n`);
     return 0;
@@ -69,6 +72,8 @@ async function runDeepSeekCommand(args, runtime) {
       {
         ...credentialOptions,
         allowNetwork: Boolean(options["allow-network"]),
+        auditLogPath: options["audit-log"],
+        budget: buildBudget(options),
         fetchImpl: runtime.fetchImpl,
         timeoutMs: options["timeout-ms"]
       }
@@ -101,6 +106,17 @@ function buildChatInput(options) {
     ...(options["max-tokens"] === undefined
       ? {}
       : { maxTokens: options["max-tokens"] })
+  };
+}
+
+function buildBudget(options) {
+  return {
+    ...(options["budget-input-chars"] === undefined
+      ? {}
+      : { maxInputChars: options["budget-input-chars"] }),
+    ...(options["budget-output-tokens"] === undefined
+      ? {}
+      : { maxOutputTokens: options["budget-output-tokens"] })
   };
 }
 

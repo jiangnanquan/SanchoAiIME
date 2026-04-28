@@ -1,4 +1,7 @@
+import { createHash } from "node:crypto";
 import { execFile as execFileCallback } from "node:child_process";
+import { appendFile, mkdir } from "node:fs/promises";
+import { dirname } from "node:path";
 
 export const DEEPSEEK_API_KEY_ENV = "DEEPSEEK_API_KEY";
 export const DEEPSEEK_KEYCHAIN_SERVICE = "SanchoAiIME DeepSeek API Key";
@@ -8,6 +11,7 @@ export const DEEPSEEK_V4_FLASH_MODEL = "deepseek-v4-flash";
 const DEFAULT_TIMEOUT_MS = 30000;
 const CHAT_COMPLETIONS_PATH = "/chat/completions";
 const MESSAGE_ROLES = new Set(["system", "user", "assistant"]);
+const AUDIT_SCHEMA = "sancho.deepseek.audit.v1";
 
 export async function resolveDeepSeekCredential(options = {}) {
   const env = options.env ?? process.env;
@@ -107,12 +111,14 @@ export function buildDeepSeekChatRequest(input = {}, options = {}) {
 export async function buildDeepSeekDryRun(input = {}, options = {}) {
   const credential = await resolveDeepSeekCredential(options);
   const request = buildDeepSeekChatRequest(input, options);
+  const budget = evaluateDeepSeekBudget(request.body, options.budget);
   return {
     provider: request.provider,
     model: request.body.model,
     endpoint: request.endpoint,
     credential: describeDeepSeekCredential(credential),
     networkRequired: true,
+    budget,
     requestBody: request.body
   };
 }
@@ -122,6 +128,12 @@ export async function callDeepSeekChat(input = {}, options = {}) {
     throw new Error(
       "DeepSeek network calls are disabled; pass allowNetwork to call the API."
     );
+  }
+
+  const request = buildDeepSeekChatRequest(input, options);
+  const budget = evaluateDeepSeekBudget(request.body, options.budget);
+  if (!budget.allowed) {
+    throw new Error(`DeepSeek budget exceeded: ${budget.violations.join("; ")}`);
   }
 
   const credential = await resolveDeepSeekCredential(options);
@@ -136,7 +148,6 @@ export async function callDeepSeekChat(input = {}, options = {}) {
     throw new Error("No fetch implementation is available for DeepSeek requests.");
   }
 
-  const request = buildDeepSeekChatRequest(input, options);
   const controller = new AbortController();
   const timeout = setTimeout(
     () => controller.abort(),
@@ -167,14 +178,128 @@ export async function callDeepSeekChat(input = {}, options = {}) {
 
   const payload = await response.json();
   const choice = Array.isArray(payload.choices) ? payload.choices[0] : undefined;
-  return {
+  const result = {
     provider: request.provider,
     model: request.body.model,
     credential: describeDeepSeekCredential(credential),
+    budget,
     responseId: payload.id,
     outputText: choice?.message?.content ?? "",
     finishReason: choice?.finish_reason,
     usage: payload.usage ?? null
+  };
+
+  if (options.auditLogPath) {
+    await appendDeepSeekAuditLog(
+      options.auditLogPath,
+      buildDeepSeekAuditRecord({
+        request: {
+          provider: request.provider,
+          model: request.body.model,
+          endpoint: request.endpoint,
+          credential: describeDeepSeekCredential(credential),
+          networkRequired: true,
+          budget,
+          requestBody: request.body
+        },
+        result,
+        status: "success"
+      })
+    );
+  }
+
+  return result;
+}
+
+export function evaluateDeepSeekBudget(requestBody, budget = {}) {
+  const body = expectPlainObject(requestBody, "DeepSeek request body");
+  const limits = normalizeDeepSeekBudget(budget);
+  const messages = normalizeDeepSeekMessages(body.messages);
+  const usage = {
+    inputChars: messages.reduce((total, message) => total + message.content.length, 0),
+    maxOutputTokens: body.max_tokens ?? null
+  };
+  const violations = [];
+
+  if (limits.maxInputChars !== undefined && usage.inputChars > limits.maxInputChars) {
+    violations.push(
+      `input chars ${usage.inputChars} exceed limit ${limits.maxInputChars}`
+    );
+  }
+  if (limits.maxOutputTokens !== undefined) {
+    if (usage.maxOutputTokens === null) {
+      violations.push("max_tokens must be set when maxOutputTokens budget is configured");
+    } else if (usage.maxOutputTokens > limits.maxOutputTokens) {
+      violations.push(
+        `max output tokens ${usage.maxOutputTokens} exceed limit ${limits.maxOutputTokens}`
+      );
+    }
+  }
+
+  return {
+    limits,
+    usage,
+    allowed: violations.length === 0,
+    violations
+  };
+}
+
+export function buildDeepSeekAuditRecord(input = {}) {
+  const raw = expectPlainObject(input, "DeepSeek audit input");
+  const request = expectPlainObject(raw.request, "DeepSeek audit request");
+  const requestBody = expectPlainObject(
+    request.requestBody ?? request.body,
+    "DeepSeek audit request body"
+  );
+  const messages = normalizeDeepSeekMessages(requestBody.messages);
+  const result = raw.result === undefined || raw.result === null
+    ? undefined
+    : expectPlainObject(raw.result, "DeepSeek audit result");
+
+  return {
+    schema: AUDIT_SCHEMA,
+    generatedAt: cleanOptionalString(raw.generatedAt, "DeepSeek audit generatedAt")
+      ?? new Date().toISOString(),
+    provider: cleanOptionalString(request.provider, "DeepSeek audit provider") ?? "deepseek",
+    model: cleanOptionalString(request.model ?? requestBody.model, "DeepSeek audit model")
+      ?? DEEPSEEK_V4_FLASH_MODEL,
+    endpoint: cleanOptionalString(request.endpoint, "DeepSeek audit endpoint"),
+    status: cleanOptionalString(raw.status, "DeepSeek audit status")
+      ?? (raw.error ? "error" : "success"),
+    credential: sanitizeCredentialDescription(request.credential ?? raw.credential),
+    request: {
+      messageCount: messages.length,
+      inputChars: messages.reduce((total, message) => total + message.content.length, 0),
+      promptSha256: hashPromptMessages(messages),
+      maxOutputTokens: requestBody.max_tokens ?? null,
+      ...(requestBody.temperature === undefined
+        ? {}
+        : { temperature: requestBody.temperature })
+    },
+    budget: request.budget ?? evaluateDeepSeekBudget(requestBody, raw.budget),
+    ...(result === undefined
+      ? {}
+      : {
+          response: {
+            responseId: cleanOptionalString(result.responseId, "DeepSeek response id"),
+            finishReason: cleanOptionalString(result.finishReason, "DeepSeek finish reason"),
+            usage: result.usage ?? null
+          }
+        }),
+    ...(raw.error === undefined
+      ? {}
+      : { error: { message: safeErrorMessage(raw.error) } })
+  };
+}
+
+export async function appendDeepSeekAuditLog(auditLogPath, record) {
+  const path = cleanRequiredString(auditLogPath, "DeepSeek audit log path");
+  const line = `${JSON.stringify(expectPlainObject(record, "DeepSeek audit record"))}\n`;
+  await mkdir(dirname(path), { recursive: true });
+  await appendFile(path, line, "utf8");
+  return {
+    path,
+    bytesWritten: Buffer.byteLength(line)
   };
 }
 
@@ -293,6 +418,80 @@ function normalizePositiveInteger(value, name) {
     throw new Error(`${name} must be a positive integer.`);
   }
   return number;
+}
+
+function normalizeDeepSeekBudget(value) {
+  if (value === undefined || value === null) {
+    return {};
+  }
+  const raw = expectPlainObject(value, "DeepSeek budget");
+  return {
+    ...(raw.maxInputChars === undefined
+      ? {}
+      : {
+          maxInputChars: normalizePositiveInteger(
+            raw.maxInputChars,
+            "DeepSeek budget maxInputChars"
+          )
+        }),
+    ...(raw.maxOutputTokens === undefined
+      ? {}
+      : {
+          maxOutputTokens: normalizePositiveInteger(
+            raw.maxOutputTokens,
+            "DeepSeek budget maxOutputTokens"
+          )
+        })
+  };
+}
+
+function sanitizeCredentialDescription(credential) {
+  if (!credential) {
+    return describeDeepSeekCredential(null);
+  }
+  if (credential.apiKey !== undefined) {
+    return describeDeepSeekCredential(credential);
+  }
+  if (credential.available === false) {
+    return describeDeepSeekCredential(null);
+  }
+  if (credential.source === "env") {
+    return {
+      available: true,
+      source: "env",
+      envName: DEEPSEEK_API_KEY_ENV
+    };
+  }
+  if (credential.source === "keychain") {
+    return {
+      available: true,
+      source: "keychain",
+      service: DEEPSEEK_KEYCHAIN_SERVICE
+    };
+  }
+  return {
+    available: Boolean(credential.available),
+    ...(credential.source === undefined ? {} : { source: String(credential.source) })
+  };
+}
+
+function hashPromptMessages(messages) {
+  return createHash("sha256")
+    .update(JSON.stringify(messages.map((message) => ({
+      role: message.role,
+      content: message.content
+    }))))
+    .digest("hex");
+}
+
+function safeErrorMessage(error) {
+  if (typeof error === "string") {
+    return error;
+  }
+  if (error && typeof error.message === "string") {
+    return error.message;
+  }
+  return "Unknown DeepSeek error.";
 }
 
 function expectPlainObject(value, name) {
