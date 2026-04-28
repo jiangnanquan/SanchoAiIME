@@ -13,10 +13,15 @@ HTML file for:
 * maintenance jobs
 * release checks
 
-Profile environment values that look like API keys, tokens, passwords, or
-credentials are rendered as `[redacted]`. Import previews include only summary
-counts; private lexicon rows are intentionally omitted from the dashboard view
-model.
+Profile environment values and action command arguments that look like API keys,
+tokens, passwords, or credentials are rendered as `[redacted]`. Import previews
+include only summary counts; private lexicon rows are intentionally omitted from
+the dashboard view model.
+
+Executable actions are displayed as reviewable metadata. Risky actions open a
+confirmation dialog and emit a `sancho-dashboard-action-confirmed` browser
+event only after confirmation; the static dashboard never runs shell commands
+itself.
 
 ```sh
 sancho-dashboard render --state packages/dashboard/examples/dashboard-state.example.json --output data/dashboard.html

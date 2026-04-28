@@ -41,6 +41,7 @@ export function renderDashboardHtml(input = {}, options = {}) {
     ${section("maintenance", "Maintenance", renderMaintenance(model.maintenanceJobs))}
     ${section("release", "Release", renderRelease(model.releaseChecks))}
   </main>
+  ${renderActionConfirmDialog()}
   <script>${CLIENT_JS}</script>
 </body>
 </html>
@@ -95,7 +96,7 @@ function renderActions(actions) {
       <td>${badge(action.risk, action.requiresConfirmation ? "warn" : "ok")}</td>
       <td>${escapeHtml(actionTargetText(action))}</td>
       <td class="button-cell">
-        <button class="icon-button" type="button" title="${action.requiresConfirmation ? "Confirm action" : "Preview action"}" aria-label="${action.requiresConfirmation ? "Confirm action" : "Preview action"}" data-action-button data-action-label="${escapeAttribute(action.label)}" data-requires-confirmation="${action.requiresConfirmation ? "true" : "false"}">
+        <button class="icon-button" type="button" title="${action.requiresConfirmation ? "Confirm action" : "Preview action"}" aria-label="${action.requiresConfirmation ? "Confirm action" : "Preview action"}" data-action-button data-action-id="${escapeAttribute(action.id)}" data-action-label="${escapeAttribute(action.label)}" data-action-kind="${escapeAttribute(action.kind)}" data-action-risk="${escapeAttribute(action.risk)}" data-action-target="${escapeAttribute(actionTargetText(action))}" data-requires-confirmation="${action.requiresConfirmation ? "true" : "false"}">
           ${action.requiresConfirmation ? "!" : ">"}
         </button>
       </td>
@@ -180,6 +181,32 @@ function renderRelease(checks) {
   `).join("");
 
   return table(["Check", "Status", "Detail", "Command"], rows, "No release checks available.");
+}
+
+function renderActionConfirmDialog() {
+  return `<dialog id="action-confirm-dialog" class="action-dialog" aria-labelledby="action-confirm-title">
+    <form method="dialog">
+      <h2 id="action-confirm-title">Confirm Action</h2>
+      <dl class="action-dialog-details">
+        <div>
+          <dt>Action</dt>
+          <dd data-dialog-action-label></dd>
+        </div>
+        <div>
+          <dt>Kind</dt>
+          <dd data-dialog-action-kind></dd>
+        </div>
+        <div>
+          <dt>Target</dt>
+          <dd data-dialog-action-target></dd>
+        </div>
+      </dl>
+      <menu>
+        <button type="submit" value="cancel">Cancel</button>
+        <button type="submit" value="confirm" data-confirm-action>Confirm</button>
+      </menu>
+    </form>
+  </dialog>`;
 }
 
 function table(headers, rows, emptyMessage) {
@@ -485,6 +512,60 @@ tbody tr:last-child td {
   border-color: var(--accent);
   outline: 2px solid var(--accent-soft);
 }
+.action-dialog {
+  width: min(520px, calc(100vw - 32px));
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--surface);
+}
+.action-dialog::backdrop {
+  background: rgb(24 32 42 / 35%);
+}
+.action-dialog form {
+  display: grid;
+  gap: 16px;
+}
+.action-dialog-details {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+.action-dialog-details div {
+  display: grid;
+  gap: 3px;
+}
+.action-dialog-details dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.action-dialog-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.action-dialog menu {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+.action-dialog button {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 8px 12px;
+}
+.action-dialog [value="confirm"] {
+  color: var(--warn);
+  border-color: #ebce91;
+  background: var(--warn-soft);
+}
 .env-list {
   display: grid;
   gap: 5px;
@@ -519,6 +600,30 @@ tbody tr:last-child td {
 `;
 
 const CLIENT_JS = `
+const actionDialog = document.getElementById("action-confirm-dialog");
+const dialogFields = {
+  label: actionDialog?.querySelector("[data-dialog-action-label]"),
+  kind: actionDialog?.querySelector("[data-dialog-action-kind]"),
+  target: actionDialog?.querySelector("[data-dialog-action-target]")
+};
+let pendingAction = null;
+
+function actionFromButton(button) {
+  return {
+    id: button.dataset.actionId || "",
+    label: button.dataset.actionLabel || "action",
+    kind: button.dataset.actionKind || "",
+    risk: button.dataset.actionRisk || "",
+    target: button.dataset.actionTarget || ""
+  };
+}
+
+function dispatchDashboardAction(action) {
+  window.dispatchEvent(new CustomEvent("sancho-dashboard-action-confirmed", {
+    detail: action
+  }));
+}
+
 document.querySelectorAll("[data-tab]").forEach((button) => {
   button.addEventListener("click", () => {
     const id = button.dataset.tab;
@@ -532,10 +637,34 @@ document.querySelectorAll("[data-tab]").forEach((button) => {
 });
 document.querySelectorAll("[data-action-button]").forEach((button) => {
   button.addEventListener("click", () => {
-    const label = button.dataset.actionLabel || "action";
+    const action = actionFromButton(button);
     if (button.dataset.requiresConfirmation === "true") {
-      window.confirm("Confirm Sancho action: " + label);
+      pendingAction = action;
+      if (dialogFields.label) dialogFields.label.textContent = action.label;
+      if (dialogFields.kind) dialogFields.kind.textContent = action.kind;
+      if (dialogFields.target) dialogFields.target.textContent = action.target;
+      if (actionDialog?.showModal) {
+        actionDialog.showModal();
+      } else if (actionDialog) {
+        actionDialog.setAttribute("open", "");
+      }
+      return;
     }
+    dispatchDashboardAction(action);
   });
+});
+actionDialog?.querySelector("[data-confirm-action]")?.addEventListener("click", () => {
+  if (pendingAction) {
+    dispatchDashboardAction({
+      ...pendingAction,
+      confirmedAt: new Date().toISOString()
+    });
+    pendingAction = null;
+  }
+});
+actionDialog?.addEventListener("close", () => {
+  if (actionDialog.returnValue !== "confirm") {
+    pendingAction = null;
+  }
 });
 `;

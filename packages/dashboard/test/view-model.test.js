@@ -42,6 +42,26 @@ test("redacts sensitive profile environment entries", () => {
   );
 });
 
+test("redacts sensitive action command arguments from the dashboard model", () => {
+  const secret = ["sk", "1234567890abcdefghijklmnop"].join("-");
+  const model = createDashboardViewModel({
+    actions: [
+      {
+        id: "command.secret",
+        code: "sec",
+        label: "Secret command",
+        kind: "run_command",
+        command: "tool",
+        args: ["--api-key", secret],
+        risk: "confirm"
+      }
+    ]
+  });
+
+  assert.deepEqual(model.actions[0].target.args, ["--api-key", "[redacted]"]);
+  assert.equal(JSON.stringify(model).includes(secret), false);
+});
+
 test("omits private lexicon import entries from the dashboard model", () => {
   const model = createDashboardViewModel({
     imports: [
