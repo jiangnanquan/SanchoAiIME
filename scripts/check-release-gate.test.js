@@ -39,6 +39,29 @@ test("release gate accepts workspace packages with Apache-2.0 metadata", () => {
   assert.match(result.stdout, /Release gate passed/);
 });
 
+test("release gate fails closed when release SBOM metadata is incomplete", () => {
+  const root = createFixtureRepo({
+    "packages/model-orchestrator/examples/missing-license.manifest.json": JSON.stringify({
+      schemaVersion: 1,
+      id: "missing-license",
+      name: "Missing License Model",
+      source: {
+        url: "https://example.invalid/model"
+      },
+      storage: {
+        directory: "missing-license"
+      },
+      artifacts: []
+    }, null, 2)
+  });
+
+  const result = runReleaseGate(root);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Release SBOM generation failed/);
+  assert.match(result.stderr, /Model manifest missing-license must declare source\.license/);
+});
+
 function createFixtureRepo(extraFiles) {
   const root = mkdtempSync(join(tmpdir(), "sancho-release-gate-"));
   writeFileSync(join(root, "LICENSE"), "Apache License\n");
@@ -66,6 +89,7 @@ function createFixtureRepo(extraFiles) {
     name: "sancho-ai-ime-fixture",
     private: true,
     type: "module",
+    license: "Apache-2.0",
     workspaces: [
       "packages/*"
     ]

@@ -4,12 +4,14 @@
   "private": true,
   "description": "AI-native personal input method project.",
   "type": "module",
+  "license": "Apache-2.0",
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
     "test": "node --test packages/*/test/*.test.js scripts/*.test.js",
-    "release:check": "node scripts/check-release-gate.js"
+    "release:check": "node scripts/check-release-gate.js",
+    "release:sbom": "node scripts/generate-release-sbom.js"
   },
   "engines": {
     "node": ">=22"

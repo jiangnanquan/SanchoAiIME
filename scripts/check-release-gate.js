@@ -1,6 +1,8 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 
+import { buildReleaseSbom } from "./release-sbom.js";
+
 const requiredFiles = [
   "LICENSE",
   "NOTICE",
@@ -84,6 +86,12 @@ for (const file of trackedFiles) {
   if (secretValuePatterns.some((pattern) => pattern.test(content))) {
     failures.push(`Potential secret value found in tracked file: ${file}`);
   }
+}
+
+try {
+  await buildReleaseSbom({ rootDir: process.cwd() });
+} catch (error) {
+  failures.push(`Release SBOM generation failed: ${error.message}`);
 }
 
 if (failures.length > 0) {
