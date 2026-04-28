@@ -64,6 +64,11 @@ const secretValuePatterns = [
 ];
 
 const failures = [];
+const rootPackage = JSON.parse(readFileSync("package.json", "utf8"));
+
+if (rootPackage.private !== true) {
+  failures.push("Root package.json must keep private true for private RC releases");
+}
 
 for (const file of requiredFiles) {
   if (!existsSync(file)) {

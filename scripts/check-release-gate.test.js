@@ -8,6 +8,31 @@ import assert from "node:assert/strict";
 
 const releaseGateScript = fileURLToPath(new URL("./check-release-gate.js", import.meta.url));
 
+test("release gate rejects root packages that are not marked private", () => {
+  const root = createFixtureRepo({
+    "package.json": JSON.stringify({
+      name: "sancho-ai-ime-fixture",
+      private: false,
+      type: "module",
+      license: "Apache-2.0",
+      workspaces: [
+        "packages/*"
+      ]
+    }, null, 2),
+    "packages/licensed/package.json": JSON.stringify({
+      name: "@sancho-ai-ime/licensed",
+      version: "0.1.0",
+      type: "module",
+      license: "Apache-2.0"
+    }, null, 2)
+  });
+
+  const result = runReleaseGate(root);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Root package\.json must keep private true for private RC releases/);
+});
+
 test("release gate rejects workspace packages without an explicit Apache-2.0 license", () => {
   const root = createFixtureRepo({
     "packages/missing-license/package.json": JSON.stringify({
