@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 
 import { buildReleaseSbom } from "./release-sbom.js";
@@ -31,6 +31,21 @@ const forbiddenTrackedPatterns = [
   /\.duckdb(?:\.wal)?$/,
   /\.jsonl$/,
   /\.(?:bin|gguf|mlmodel|onnx|pt|pth|safetensors)$/
+];
+
+const forbiddenPackagedPatterns = [
+  {
+    label: "test file",
+    pattern: /(?:^|\/)test\/|\.test\.[cm]?js$/
+  },
+  {
+    label: "environment file",
+    pattern: /(?:^|\/)\.env(?:\.|$)/
+  },
+  {
+    label: "runtime or model artifact",
+    pattern: /\.(?:duckdb(?:\.wal)?|jsonl|bin|gguf|mlmodel|onnx|pt|pth|safetensors)$/
+  }
 ];
 
 const secretValuePatterns = [
@@ -103,6 +118,10 @@ try {
   failures.push(`Release SBOM generation failed: ${error.message}`);
 }
 
+for (const failure of checkPackageDryRun()) {
+  failures.push(failure);
+}
+
 if (failures.length > 0) {
   console.error("Release gate failed:");
   for (const failure of failures) {
@@ -138,4 +157,62 @@ function findSecretFindings(content) {
     }
   }
   return findings;
+}
+
+function checkPackageDryRun() {
+  const result = spawnSync("npm", ["pack", "--dry-run", "--json", "--workspaces"], {
+    cwd: process.cwd(),
+    encoding: "utf8"
+  });
+  const packageFailures = [];
+
+  if (result.status !== 0) {
+    packageFailures.push(`Package dry-run failed: ${summarizeCommandFailure(result)}`);
+    return packageFailures;
+  }
+
+  let packs;
+  try {
+    packs = JSON.parse(result.stdout);
+  } catch {
+    packageFailures.push("Package dry-run did not return JSON metadata");
+    return packageFailures;
+  }
+
+  if (!Array.isArray(packs) || packs.length === 0) {
+    packageFailures.push("Package dry-run returned no workspace package metadata");
+    return packageFailures;
+  }
+
+  for (const pack of packs) {
+    const packageName = pack.name ?? pack.id ?? "workspace package";
+    const files = Array.isArray(pack.files) ? pack.files : [];
+    if (files.length === 0) {
+      packageFailures.push(`Package ${packageName} dry-run returned no files`);
+      continue;
+    }
+
+    for (const file of files) {
+      const path = typeof file === "string" ? file : file.path;
+      if (!path) {
+        continue;
+      }
+      for (const { label, pattern } of forbiddenPackagedPatterns) {
+        pattern.lastIndex = 0;
+        if (pattern.test(path)) {
+          packageFailures.push(`Package ${packageName} dry-run includes forbidden ${label}: ${path}`);
+        }
+      }
+    }
+  }
+
+  return packageFailures;
+}
+
+function summarizeCommandFailure(result) {
+  const output = `${result.stderr ?? ""}\n${result.stdout ?? ""}`
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return output[0] ?? `exit ${result.status}`;
 }

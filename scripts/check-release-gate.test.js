@@ -40,6 +40,23 @@ test("release gate reports tracked secret findings with file and line", () => {
   assert.equal(result.stderr.includes(fakeSecret), false);
 });
 
+test("release gate rejects workspace packages that would publish tests", () => {
+  const root = createFixtureRepo({
+    "packages/leaky-package/package.json": JSON.stringify({
+      name: "@sancho-ai-ime/leaky-package",
+      version: "0.1.0",
+      type: "module",
+      license: "Apache-2.0"
+    }, null, 2),
+    "packages/leaky-package/test/leaky.test.js": "export {};\n"
+  });
+
+  const result = runReleaseGate(root);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Package @sancho-ai-ime\/leaky-package dry-run includes forbidden test file: test\/leaky\.test\.js/);
+});
+
 test("release gate accepts workspace packages with Apache-2.0 metadata", () => {
   const root = createFixtureRepo({
     "packages/licensed/package.json": JSON.stringify({
