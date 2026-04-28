@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Lexicon import preview, normalization, and rollback helpers for SanchoAiIME.",
   "type": "module",
+  "license": "Apache-2.0",
   "bin": {
     "sancho-lexicon-importer": "bin/sancho-lexicon-importer.js"
   },

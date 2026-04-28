@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Cloud teacher integrations for offline SanchoAiIME maintenance jobs.",
   "type": "module",
+  "license": "Apache-2.0",
   "bin": {
     "sancho-cloud-teacher": "bin/sancho-cloud-teacher.js"
   },

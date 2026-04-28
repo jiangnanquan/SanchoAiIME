@@ -69,6 +69,13 @@ for (const file of trackedFiles) {
   }
 }
 
+for (const file of trackedFiles.filter((path) => /^packages\/[^/]+\/package\.json$/.test(path))) {
+  const packageJson = JSON.parse(readFileSync(file, "utf8"));
+  if (packageJson.license !== "Apache-2.0") {
+    failures.push(`Workspace package ${packageJson.name ?? file} must declare license Apache-2.0`);
+  }
+}
+
 for (const file of trackedFiles) {
   if (!isLikelyTextFile(file)) {
     continue;

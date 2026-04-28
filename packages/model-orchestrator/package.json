@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Local model bootstrap and benchmark helpers for SanchoAiIME.",
   "type": "module",
+  "license": "Apache-2.0",
   "bin": {
     "sancho-model-orchestrator": "bin/sancho-model-orchestrator.js"
   },
