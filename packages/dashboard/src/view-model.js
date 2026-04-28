@@ -29,6 +29,7 @@ const ACTION_KINDS = new Set([
 const INSERTION_ACTION_KINDS = new Set(["insert_text", "copy_text"]);
 const SENSITIVE_ENV_NAME = /(?:api[_-]?key|token|secret|password|credential|auth|bearer)/i;
 const SENSITIVE_VALUE = /(?:sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16})/;
+const REDACTED_VALUE = "[redacted]";
 
 export function createDashboardViewModel(input = {}) {
   const raw = expectPlainObject(input, "Dashboard input");
@@ -283,7 +284,7 @@ function actionTarget(raw, kind, context) {
     return {
       type: "command",
       command: cleanOptionalString(raw.command, "Action command"),
-      args: normalizeScalars(raw.args ?? [])
+      args: normalizeActionArgs(raw.args ?? [])
     };
   }
   if (kind === "open_url") {
@@ -334,10 +335,43 @@ function normalizeEnvForDisplay(env) {
       const redacted = isSensitiveEnvEntry(name, textValue);
       return {
         name,
-        value: redacted ? "[redacted]" : textValue,
+        value: redacted ? REDACTED_VALUE : textValue,
         redacted
       };
     });
+}
+
+function normalizeActionArgs(values) {
+  const args = normalizeScalars(values);
+  return args.map((value, index) => {
+    if (isSensitiveInlineArg(value) || SENSITIVE_VALUE.test(value)) {
+      return redactInlineArg(value);
+    }
+    if (index > 0 && isSensitiveArgName(args[index - 1])) {
+      return REDACTED_VALUE;
+    }
+    return value;
+  });
+}
+
+function isSensitiveInlineArg(value) {
+  const separator = value.indexOf("=");
+  if (separator === -1) {
+    return false;
+  }
+  return isSensitiveArgName(value.slice(0, separator));
+}
+
+function redactInlineArg(value) {
+  const separator = value.indexOf("=");
+  if (separator === -1) {
+    return REDACTED_VALUE;
+  }
+  return `${value.slice(0, separator + 1)}${REDACTED_VALUE}`;
+}
+
+function isSensitiveArgName(value) {
+  return SENSITIVE_ENV_NAME.test(String(value).replace(/^-+/, ""));
 }
 
 function normalizeModels(input) {

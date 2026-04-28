@@ -38,3 +38,14 @@ test("escapes JSON for script embedding", () => {
   assert.equal(json.includes("</script>"), false);
   assert.match(json, /\\u003c\/script\\u003e/);
 });
+
+test("renders a non-executing confirmation dialog for risky actions", () => {
+  const html = renderDashboardHtml(createSampleDashboardInput());
+
+  assert.match(html, /<dialog id="action-confirm-dialog"/);
+  assert.match(html, /data-action-id="command\.release-check"/);
+  assert.match(html, /data-action-kind="run_command"/);
+  assert.match(html, /data-action-risk="confirm"/);
+  assert.match(html, /sancho-dashboard-action-confirmed/);
+  assert.doesNotMatch(html, /window\.confirm/);
+});
