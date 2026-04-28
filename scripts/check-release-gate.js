@@ -34,9 +34,18 @@ const forbiddenTrackedPatterns = [
 ];
 
 const secretValuePatterns = [
-  /sk-[A-Za-z0-9_-]{20,}/,
-  /gh[pousr]_[A-Za-z0-9_]{20,}/,
-  /AKIA[0-9A-Z]{16}/
+  {
+    label: "OpenAI-style secret",
+    pattern: /sk-[A-Za-z0-9_-]{20,}/
+  },
+  {
+    label: "GitHub token",
+    pattern: /gh[pousr]_[A-Za-z0-9_]{20,}/
+  },
+  {
+    label: "AWS access key",
+    pattern: /AKIA[0-9A-Z]{16}/
+  }
 ];
 
 const failures = [];
@@ -83,8 +92,8 @@ for (const file of trackedFiles) {
     continue;
   }
   const content = readFileSync(file, "utf8");
-  if (secretValuePatterns.some((pattern) => pattern.test(content))) {
-    failures.push(`Potential secret value found in tracked file: ${file}`);
+  for (const finding of findSecretFindings(content)) {
+    failures.push(`Potential ${finding.label} found in tracked file: ${file}:${finding.line}`);
   }
 }
 
@@ -112,4 +121,21 @@ function isLikelyTextFile(file) {
 function isForbiddenEnvFile(file) {
   const name = file.split("/").at(-1);
   return name === ".env" || (name.startsWith(".env.") && name !== ".env.example");
+}
+
+function findSecretFindings(content) {
+  const findings = [];
+  const lines = content.split(/\r\n|\r|\n/);
+  for (const [index, line] of lines.entries()) {
+    for (const { label, pattern } of secretValuePatterns) {
+      pattern.lastIndex = 0;
+      if (pattern.test(line)) {
+        findings.push({
+          label,
+          line: index + 1
+        });
+      }
+    }
+  }
+  return findings;
 }

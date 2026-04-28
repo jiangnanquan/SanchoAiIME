@@ -23,6 +23,23 @@ test("release gate rejects workspace packages without an explicit Apache-2.0 lic
   assert.match(result.stderr, /Workspace package @sancho-ai-ime\/missing-license must declare license Apache-2\.0/);
 });
 
+test("release gate reports tracked secret findings with file and line", () => {
+  const fakeSecret = ["sk", "1234567890abcdefghijklmnop"].join("-");
+  const root = createFixtureRepo({
+    "docs/secrets.md": [
+      "# Fixture",
+      `Token: ${fakeSecret}`,
+      ""
+    ].join("\n")
+  });
+
+  const result = runReleaseGate(root);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Potential OpenAI-style secret found in tracked file: docs\/secrets\.md:2/);
+  assert.equal(result.stderr.includes(fakeSecret), false);
+});
+
 test("release gate accepts workspace packages with Apache-2.0 metadata", () => {
   const root = createFixtureRepo({
     "packages/licensed/package.json": JSON.stringify({
