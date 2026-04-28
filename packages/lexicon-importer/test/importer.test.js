@@ -6,8 +6,10 @@ import test from "node:test";
 
 import {
   createImportPreview,
+  importExternalLexiconFile,
   importLexiconFile,
   parseLexiconText,
+  previewExternalLexiconFile,
   rollbackImport
 } from "../src/importer.js";
 import { runCli } from "../src/cli.js";
@@ -181,4 +183,117 @@ test("CLI preview prints JSON summary and entries", async () => {
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test("external imewlconverter preview imports converted stdout without shell execution", async () => {
+  const calls = [];
+  const preview = await previewExternalLexiconFile({
+    adapter: "imewlconverter",
+    sourceFormat: "sogou-scel",
+    convertedFormat: "tsv",
+    inputPath: "/tmp/private.scel",
+    toolPath: "imewlconverter",
+    adapterArgs: ["--input", "{input}", "--stdout"],
+    execFileImpl: async (file, args, options) => {
+      calls.push({ file, args, options });
+      return {
+        stdout: "surface\treading\tweight\n搜狗词库\tsg ck\t300\n",
+        stderr: ""
+      };
+    }
+  });
+
+  assert.deepEqual(calls, [
+    {
+      file: "imewlconverter",
+      args: ["--input", "/tmp/private.scel", "--stdout"],
+      options: {
+        encoding: "utf8",
+        maxBuffer: 10 * 1024 * 1024,
+        shell: false
+      }
+    }
+  ]);
+  assert.equal(preview.adapter.adapter, "imewlconverter");
+  assert.equal(preview.adapter.sourceFormat, "sogou-scel");
+  assert.equal(preview.format, "tsv");
+  assert.equal(preview.summary.importedEntries, 1);
+  assert.equal(preview.entries[0].source, "private.scel");
+});
+
+test("external adapter import writes normalized output with rollback snapshot", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "sancho-lexicon-external-"));
+  const inputPath = join(directory, "qq-export.txt");
+  const outputPath = join(directory, "data", "lexicons", "qq-import.json");
+
+  try {
+    await writeFile(inputPath, "external fixture stays private\n", "utf8");
+    const result = await importExternalLexiconFile({
+      adapter: "imewlconverter",
+      sourceFormat: "qq-pinyin",
+      convertedFormat: "tsv",
+      inputPath,
+      outputPath,
+      toolPath: "mock-imewlconverter",
+      adapterArgs: ["{input}"],
+      execFileImpl: async () => ({
+        stdout: "surface\treading\tweight\nQQ短语\tqq dy\t210\n",
+        stderr: ""
+      })
+    });
+
+    assert.equal(result.preview.adapter.sourceFormat, "qq-pinyin");
+    assert.equal(result.rollback.restoredExistingFile, false);
+    const imported = JSON.parse(await readFile(outputPath, "utf8"));
+    assert.equal(imported.source, "qq-export.txt");
+    assert.equal(imported.adapter.adapter, "imewlconverter");
+    assert.equal(imported.entries[0].surface, "QQ短语");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("external adapter rejects undeclared popular IME source formats", async () => {
+  await assert.rejects(
+    previewExternalLexiconFile({
+      adapter: "imewlconverter",
+      sourceFormat: "unknown-binary",
+      convertedFormat: "tsv",
+      inputPath: "/tmp/private.bin",
+      adapterArgs: ["{input}"],
+      execFileImpl: async () => ({ stdout: "", stderr: "" })
+    }),
+    /Unsupported source format for imewlconverter: unknown-binary/
+  );
+});
+
+test("CLI external-preview accepts adapter args after separator", async () => {
+  let stdout = "";
+  const code = await runCli([
+    "external-preview",
+    "--adapter",
+    "imewlconverter",
+    "--source-format",
+    "baidu-ime",
+    "--converted-format",
+    "tsv",
+    "--input",
+    "/tmp/baidu-user.dat",
+    "--tool",
+    "mock-imewlconverter",
+    "--",
+    "--from",
+    "{input}"
+  ], {
+    stdout: { write: (chunk) => { stdout += chunk; } },
+    execFileImpl: async () => ({
+      stdout: "surface\treading\tweight\n百度短语\tbd dy\t180\n",
+      stderr: ""
+    })
+  });
+
+  assert.equal(code, 0);
+  const parsed = JSON.parse(stdout);
+  assert.equal(parsed.adapter.sourceFormat, "baidu-ime");
+  assert.equal(parsed.entries[0].surface, "百度短语");
 });

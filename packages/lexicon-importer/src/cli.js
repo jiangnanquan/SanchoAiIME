@@ -1,6 +1,8 @@
 import {
   SUPPORTED_FORMATS,
+  importExternalLexiconFile,
   importLexiconFile,
+  previewExternalLexiconFile,
   previewLexiconFile,
   rollbackImport
 } from "./importer.js";
@@ -8,6 +10,8 @@ import {
 const HELP = `Usage:
   sancho-lexicon-importer preview --format <format> --input <path> [--source <id>] [--default-weight n]
   sancho-lexicon-importer import --format <format> --input <path> --output <path> [--source <id>] [--rollback-dir <path>] [--dry-run]
+  sancho-lexicon-importer external-preview --adapter imewlconverter --source-format <format> --converted-format <format> --input <path> [--tool <path>] -- <adapter args>
+  sancho-lexicon-importer external-import --adapter imewlconverter --source-format <format> --converted-format <format> --input <path> --output <path> [--tool <path>] [--rollback-dir <path>] [--dry-run] -- <adapter args>
   sancho-lexicon-importer rollback --output <path> --rollback-id <id> [--rollback-dir <path>] [--dry-run]
 
 Formats: ${SUPPORTED_FORMATS.join(", ")}
@@ -25,9 +29,10 @@ export async function runCli(argv, streams = {}) {
     return 0;
   }
 
-  const { options } = parseOptions(rest);
+  const { options, passthroughArgs } = parseOptions(rest);
 
   if (command === "preview") {
+    rejectPassthroughArgs(command, passthroughArgs);
     const result = await previewLexiconFile(optionsFromCli(options, {
       requireInput: true,
       requireFormat: true
@@ -37,6 +42,7 @@ export async function runCli(argv, streams = {}) {
   }
 
   if (command === "import") {
+    rejectPassthroughArgs(command, passthroughArgs);
     const result = await importLexiconFile(optionsFromCli(options, {
       requireInput: true,
       requireFormat: true,
@@ -46,7 +52,25 @@ export async function runCli(argv, streams = {}) {
     return 0;
   }
 
+  if (command === "external-preview") {
+    const result = await previewExternalLexiconFile(externalOptionsFromCli(options, passthroughArgs, {
+      requireInput: true
+    }, streams));
+    stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return 0;
+  }
+
+  if (command === "external-import") {
+    const result = await importExternalLexiconFile(externalOptionsFromCli(options, passthroughArgs, {
+      requireInput: true,
+      requireOutput: true
+    }, streams));
+    stdout.write(`${JSON.stringify(summarizeImportResult(result), null, 2)}\n`);
+    return 0;
+  }
+
   if (command === "rollback") {
+    rejectPassthroughArgs(command, passthroughArgs);
     const result = await rollbackImport(optionsFromCli(options, {
       requireOutput: true,
       requireRollbackId: true
@@ -84,6 +108,39 @@ function optionsFromCli(options, requirements) {
   };
 }
 
+function externalOptionsFromCli(options, passthroughArgs, requirements, streams) {
+  if (!options.adapter) {
+    throw new Error("Missing required option --adapter.");
+  }
+  if (!options["source-format"]) {
+    throw new Error("Missing required option --source-format.");
+  }
+  if (!options["converted-format"] && !options.format) {
+    throw new Error("Missing required option --converted-format.");
+  }
+  if (requirements.requireInput && !options.input) {
+    throw new Error("Missing required option --input.");
+  }
+  if (requirements.requireOutput && !options.output) {
+    throw new Error("Missing required option --output.");
+  }
+
+  return {
+    adapter: options.adapter,
+    sourceFormat: options["source-format"],
+    convertedFormat: options["converted-format"] ?? options.format,
+    inputPath: options.input,
+    outputPath: options.output,
+    rollbackDir: options["rollback-dir"],
+    sourceId: options.source,
+    defaultWeight: options["default-weight"],
+    toolPath: options.tool,
+    adapterArgs: passthroughArgs,
+    execFileImpl: streams.execFileImpl,
+    dryRun: Boolean(options["dry-run"])
+  };
+}
+
 function summarizeImportResult(result) {
   return {
     changed: result.changed,
@@ -92,14 +149,19 @@ function summarizeImportResult(result) {
     rollback: result.rollback,
     source: result.preview.source,
     format: result.preview.format,
+    adapter: result.preview.adapter,
     summary: result.preview.summary
   };
 }
 
 function parseOptions(args) {
   const options = {};
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index];
+  const separatorIndex = args.indexOf("--");
+  const optionArgs = separatorIndex === -1 ? args : args.slice(0, separatorIndex);
+  const passthroughArgs = separatorIndex === -1 ? [] : args.slice(separatorIndex + 1);
+
+  for (let index = 0; index < optionArgs.length; index += 1) {
+    const arg = optionArgs[index];
     if (!arg.startsWith("--")) {
       throw new Error(`Unexpected argument: ${arg}`);
     }
@@ -110,12 +172,18 @@ function parseOptions(args) {
       continue;
     }
 
-    const value = args[index + 1];
+    const value = optionArgs[index + 1];
     if (!value || value.startsWith("--")) {
       throw new Error(`Missing value for --${name}`);
     }
     options[name] = value;
     index += 1;
   }
-  return { options };
+  return { options, passthroughArgs };
+}
+
+function rejectPassthroughArgs(command, passthroughArgs) {
+  if (passthroughArgs.length > 0) {
+    throw new Error(`Command ${command} does not accept adapter args after --.`);
+  }
 }

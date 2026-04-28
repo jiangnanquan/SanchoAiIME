@@ -1,13 +1,17 @@
+import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import {
   copyFile,
+  mkdtemp,
   mkdir,
   readFile,
   rename,
   rm,
   writeFile
 } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
+import { promisify } from "node:util";
 
 export const SUPPORTED_FORMATS = [
   "rime-custom-phrase",
@@ -16,11 +20,27 @@ export const SUPPORTED_FORMATS = [
   "csv"
 ];
 
+export const EXTERNAL_ADAPTERS = {
+  imewlconverter: {
+    licenseBoundary: "external-process",
+    sourceFormats: [
+      "sogou-scel",
+      "sogou-text",
+      "qq-pinyin",
+      "baidu-ime",
+      "microsoft-pinyin",
+      "macos-text-replacements"
+    ]
+  }
+};
+
 export const DEFAULT_WEIGHT = 100;
 
 const MAX_WEIGHT = 999999;
 const IMPORT_SCHEMA = "sancho.lexicon.import.v1";
 const ROLLBACK_SCHEMA = "sancho.lexicon.rollback.v1";
+const DEFAULT_EXTERNAL_MAX_BUFFER = 10 * 1024 * 1024;
+const execFileAsync = promisify(execFile);
 
 export function parseLexiconText(text, options = {}) {
   if (typeof text !== "string") {
@@ -84,6 +104,48 @@ export async function previewLexiconFile(options = {}) {
 export async function importLexiconFile(options = {}) {
   const outputPath = requirePath(options.outputPath, "outputPath");
   const preview = await previewLexiconFile(options);
+  return writeImportPreview(outputPath, preview, options);
+}
+
+export async function previewExternalLexiconFile(options = {}) {
+  const inputPath = requirePath(options.inputPath, "inputPath");
+  const adapter = requireExternalAdapter(options.adapter);
+  const sourceFormat = requireExternalSourceFormat(adapter, options.sourceFormat);
+  const convertedFormat = requireSupportedFormat(options.convertedFormat ?? options.format);
+  const conversion = await runExternalAdapter({
+    adapter,
+    inputPath,
+    toolPath: options.toolPath,
+    adapterArgs: options.adapterArgs,
+    execFileImpl: options.execFileImpl,
+    maxBuffer: options.maxBuffer
+  });
+
+  const preview = createImportPreview({
+    text: conversion.text,
+    format: convertedFormat,
+    sourceId: options.sourceId ?? options.source ?? basename(inputPath),
+    defaultWeight: options.defaultWeight
+  });
+
+  return {
+    ...preview,
+    adapter: {
+      adapter,
+      sourceFormat,
+      convertedFormat,
+      licenseBoundary: EXTERNAL_ADAPTERS[adapter].licenseBoundary
+    }
+  };
+}
+
+export async function importExternalLexiconFile(options = {}) {
+  const outputPath = requirePath(options.outputPath, "outputPath");
+  const preview = await previewExternalLexiconFile(options);
+  return writeImportPreview(outputPath, preview, options);
+}
+
+async function writeImportPreview(outputPath, preview, options) {
   const generatedAt = new Date().toISOString();
   const document = {
     schema: IMPORT_SCHEMA,
@@ -93,6 +155,9 @@ export async function importLexiconFile(options = {}) {
     summary: preview.summary,
     entries: preview.entries
   };
+  if (preview.adapter) {
+    document.adapter = preview.adapter;
+  }
 
   if (options.dryRun) {
     return {
@@ -116,6 +181,43 @@ export async function importLexiconFile(options = {}) {
     document,
     preview
   };
+}
+
+async function runExternalAdapter(options) {
+  const toolPath = options.toolPath ?? options.adapter;
+  if (typeof toolPath !== "string" || toolPath.trim() === "") {
+    throw new Error("Missing external adapter tool path.");
+  }
+  const adapterArgs = requireAdapterArgs(options.adapterArgs);
+  const temporaryDir = adapterArgs.some((arg) => String(arg).includes("{output}"))
+    ? await mkdtemp(join(tmpdir(), "sancho-lexicon-adapter-"))
+    : null;
+  const outputPath = temporaryDir ? join(temporaryDir, "converted.lexicon") : null;
+  const expandedArgs = adapterArgs.map((arg) => String(arg)
+    .replaceAll("{input}", options.inputPath)
+    .replaceAll("{output}", outputPath ?? ""));
+  const execFileImpl = options.execFileImpl ?? execFileAsync;
+
+  try {
+    const result = await execFileImpl(toolPath, expandedArgs, {
+      encoding: "utf8",
+      maxBuffer: options.maxBuffer ?? DEFAULT_EXTERNAL_MAX_BUFFER,
+      shell: false
+    });
+    const text = outputPath
+      ? await readFile(outputPath, "utf8")
+      : normalizeAdapterStdout(result?.stdout);
+    return { text, toolPath };
+  } catch (error) {
+    const exitCode = error && typeof error === "object" && "code" in error
+      ? error.code
+      : "unknown";
+    throw new Error(`External lexicon adapter ${options.adapter} failed with exit code ${exitCode}.`);
+  } finally {
+    if (temporaryDir) {
+      await rm(temporaryDir, { recursive: true, force: true });
+    }
+  }
 }
 
 export async function rollbackImport(options = {}) {
@@ -468,6 +570,44 @@ function requireSupportedFormat(format) {
     );
   }
   return format;
+}
+
+function requireExternalAdapter(adapter) {
+  if (!Object.hasOwn(EXTERNAL_ADAPTERS, adapter)) {
+    throw new Error(
+      `Unsupported external lexicon adapter: ${adapter ?? "(missing)"}. Supported adapters: ${Object.keys(EXTERNAL_ADAPTERS).join(", ")}.`
+    );
+  }
+  return adapter;
+}
+
+function requireExternalSourceFormat(adapter, sourceFormat) {
+  const cleaned = cleanIdentifier(sourceFormat, "sourceFormat");
+  const supported = EXTERNAL_ADAPTERS[adapter].sourceFormats;
+  if (!supported.includes(cleaned)) {
+    throw new Error(`Unsupported source format for ${adapter}: ${cleaned}. Supported source formats: ${supported.join(", ")}.`);
+  }
+  return cleaned;
+}
+
+function requireAdapterArgs(adapterArgs) {
+  if (!Array.isArray(adapterArgs) || adapterArgs.length === 0) {
+    throw new Error("External adapter args must be a non-empty array.");
+  }
+  if (!adapterArgs.some((arg) => String(arg).includes("{input}"))) {
+    throw new Error("External adapter args must include the {input} token.");
+  }
+  return adapterArgs;
+}
+
+function normalizeAdapterStdout(stdout) {
+  if (typeof stdout === "string") {
+    return stdout;
+  }
+  if (Buffer.isBuffer(stdout)) {
+    return stdout.toString("utf8");
+  }
+  return String(stdout ?? "");
 }
 
 function requirePath(path, name) {
