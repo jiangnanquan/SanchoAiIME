@@ -14,6 +14,13 @@ const requiredGitignoreEntries = [
   "data/",
   "logs/",
   "models/",
+  "*.bin",
+  "*.gguf",
+  "*.mlmodel",
+  "*.onnx",
+  "*.pt",
+  "*.pth",
+  "*.safetensors",
   "*.duckdb",
   "*.jsonl"
 ];
@@ -21,7 +28,7 @@ const requiredGitignoreEntries = [
 const forbiddenTrackedPatterns = [
   /\.duckdb(?:\.wal)?$/,
   /\.jsonl$/,
-  /\.(?:gguf|safetensors|onnx|pt|pth)$/
+  /\.(?:bin|gguf|mlmodel|onnx|pt|pth|safetensors)$/
 ];
 
 const secretValuePatterns = [
@@ -59,6 +66,13 @@ for (const file of trackedFiles) {
   if (isForbiddenEnvFile(file)
     || forbiddenTrackedPatterns.some((pattern) => pattern.test(file))) {
     failures.push(`Forbidden runtime or model artifact is tracked: ${file}`);
+  }
+}
+
+for (const file of trackedFiles.filter((path) => /^packages\/[^/]+\/package\.json$/.test(path))) {
+  const packageJson = JSON.parse(readFileSync(file, "utf8"));
+  if (packageJson.license !== "Apache-2.0") {
+    failures.push(`Workspace package ${packageJson.name ?? file} must declare license Apache-2.0`);
   }
 }
 

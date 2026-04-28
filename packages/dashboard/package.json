@@ -1,0 +1,25 @@
+{
+  "name": "@sancho-ai-ime/dashboard",
+  "version": "0.1.0",
+  "description": "Static dashboard view model and renderer for SanchoAiIME management surfaces.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "bin": {
+    "sancho-dashboard": "./bin/sancho-dashboard.js"
+  },
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "examples/",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

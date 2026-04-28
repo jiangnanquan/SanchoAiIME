@@ -1,0 +1,132 @@
+{
+  "title": "SanchoAiIME Dashboard",
+  "quickDictionary": {
+    "path": "/Users/jnq/Library/Rime/custom_phrase.txt",
+    "managedRegionStatus": "ready",
+    "entries": [
+      {
+        "surface": "SanchoExo Codex DeepSeek",
+        "code": "cds",
+        "weight": 99
+      },
+      {
+        "surface": "Qwen local predictor",
+        "code": "qwp",
+        "weight": 90
+      }
+    ]
+  },
+  "actionRegistry": {
+    "profiles": [
+      {
+        "id": "sanchoexo-codex-deepseek",
+        "label": "SanchoExo / Codex / DeepSeek",
+        "command": "codex",
+        "args": [],
+        "cwd": "/Users/jnq/Dev/Private/SanchoExo",
+        "inheritEnv": true,
+        "env": {
+          "OPENAI_BASE_URL": "https://api.deepseek.com",
+          "OPENAI_MODEL": "deepseek-v4-flash",
+          "DEEPSEEK_API_KEY": "sample-secret-value-redacted-by-renderer"
+        }
+      }
+    ],
+    "actions": [
+      {
+        "id": "snippet.qwen",
+        "code": "qwp",
+        "label": "Qwen local predictor",
+        "kind": "insert_text",
+        "text": "Qwen local predictor",
+        "risk": "normal",
+        "weight": 90
+      },
+      {
+        "id": "profile.sanchoexo.codex.deepseek",
+        "code": "cds",
+        "label": "SanchoExo + Codex + DeepSeek",
+        "kind": "profile_switch",
+        "profile": "sanchoexo-codex-deepseek",
+        "insertPreview": "SanchoExo Codex DeepSeek",
+        "risk": "normal",
+        "weight": 99
+      },
+      {
+        "id": "command.release-check",
+        "code": "rlc",
+        "label": "Run release gate",
+        "kind": "run_command",
+        "command": "npm",
+        "args": [
+          "run",
+          "release:check"
+        ],
+        "risk": "confirm",
+        "weight": 80
+      }
+    ]
+  },
+  "models": [
+    {
+      "id": "qwen3.5-0.8b",
+      "name": "Qwen3.5-0.8B",
+      "role": "local-realtime-predictor",
+      "status": "planned",
+      "source": {
+        "type": "huggingface",
+        "repository": "Qwen/Qwen3.5-0.8B",
+        "license": "Apache-2.0"
+      },
+      "artifacts": [],
+      "benchmark": {
+        "iterations": 3,
+        "timeoutMs": 30000
+      }
+    }
+  ],
+  "imports": [
+    {
+      "source": "rime-custom-phrase",
+      "format": "rime-custom-phrase",
+      "summary": {
+        "parsedRows": 42,
+        "acceptedRows": 41,
+        "rejectedRows": 1,
+        "duplicateRows": 3,
+        "importedEntries": 38
+      }
+    }
+  ],
+  "maintenanceJobs": [
+    {
+      "id": "job_20260428_lexicon_audit",
+      "kind": "health_audit",
+      "model": "deepseek-v4-flash",
+      "privacyMode": "redacted",
+      "budgetCents": 10,
+      "status": "pending_review",
+      "scope": [
+        "quick_dictionary",
+        "import_summaries"
+      ]
+    }
+  ],
+  "releaseChecks": [
+    {
+      "id": "license",
+      "label": "LICENSE",
+      "status": "pass"
+    },
+    {
+      "id": "notice",
+      "label": "NOTICE",
+      "status": "pass"
+    },
+    {
+      "id": "secret-scan",
+      "label": "Tracked secret scan",
+      "status": "pass"
+    }
+  ]
+}

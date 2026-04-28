@@ -15,8 +15,17 @@ tmp/
 ime_history.jsonl
 
 data/
+imports/
+lexicons/
 logs/
 models/
+*.bin
+*.gguf
+*.mlmodel
+*.onnx
+*.pt
+*.pth
+*.safetensors
 *.duckdb
 *.duckdb.wal
 

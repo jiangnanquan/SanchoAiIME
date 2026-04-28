@@ -8,7 +8,7 @@
     "packages/*"
   ],
   "scripts": {
-    "test": "node --test packages/*/test/*.test.js",
+    "test": "node --test packages/*/test/*.test.js scripts/*.test.js",
     "release:check": "node scripts/check-release-gate.js"
   },
   "engines": {
