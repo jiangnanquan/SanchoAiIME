@@ -117,6 +117,45 @@ test("parses quoted CSV fields", () => {
   ]);
 });
 
+test("parses macOS Text Replacements XML plist exports", () => {
+  const preview = createImportPreview({
+    format: "macos-text-replacements",
+    sourceId: "Text Substitutions.plist",
+    text: [
+      "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+      "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">",
+      "<plist version=\"1.0\">",
+      "<array>",
+      "  <dict>",
+      "    <key>shortcut</key>",
+      "    <string>dsf</string>",
+      "    <key>phrase</key>",
+      "    <string>DeepSeek &amp; Qwen</string>",
+      "  </dict>",
+      "  <dict>",
+      "    <key>shortcut</key>",
+      "    <string>bad</string>",
+      "  </dict>",
+      "</array>",
+      "</plist>"
+    ].join("\n")
+  });
+
+  assert.equal(preview.summary.parsedRows, 2);
+  assert.equal(preview.summary.acceptedRows, 1);
+  assert.equal(preview.summary.rejectedRows, 1);
+  assert.deepEqual(preview.entries, [
+    {
+      surface: "DeepSeek & Qwen",
+      reading: "dsf",
+      weight: 100,
+      source: "Text Substitutions.plist",
+      style_tags: ["macos-text-replacement"]
+    }
+  ]);
+  assert.match(preview.rejectedRows[0].reason, /phrase/);
+});
+
 test("imports normalized lexicon and rolls back the previous output", async () => {
   const directory = await mkdtemp(join(tmpdir(), "sancho-lexicon-importer-"));
   const inputPath = join(directory, "custom_phrase.txt");
@@ -180,6 +219,46 @@ test("CLI preview prints JSON summary and entries", async () => {
     const parsed = JSON.parse(stdout);
     assert.equal(parsed.summary.importedEntries, 1);
     assert.equal(parsed.entries[0].source, "cli-fixture");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("CLI previews macOS Text Replacements without requiring an external converter", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "sancho-lexicon-importer-macos-cli-"));
+  const inputPath = join(directory, "Text Substitutions.plist");
+  let stdout = "";
+
+  try {
+    await writeFile(inputPath, [
+      "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+      "<plist version=\"1.0\">",
+      "<array>",
+      "  <dict>",
+      "    <key>phrase</key><string>Sancho profile</string>",
+      "    <key>shortcut</key><string>sp</string>",
+      "  </dict>",
+      "</array>",
+      "</plist>"
+    ].join("\n"), "utf8");
+
+    const code = await runCli([
+      "preview",
+      "--format",
+      "macos-text-replacements",
+      "--input",
+      inputPath,
+      "--source",
+      "macos-fixture"
+    ], {
+      stdout: { write: (chunk) => { stdout += chunk; } }
+    });
+
+    assert.equal(code, 0);
+    const parsed = JSON.parse(stdout);
+    assert.equal(parsed.summary.importedEntries, 1);
+    assert.equal(parsed.entries[0].source, "macos-fixture");
+    assert.deepEqual(parsed.entries[0].style_tags, ["macos-text-replacement"]);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
