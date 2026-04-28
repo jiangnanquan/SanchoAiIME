@@ -9,6 +9,12 @@
     "./actions": "./src/actions.js",
     "./custom-phrase": "./src/custom-phrase.js"
   },
+  "files": [
+    "bin/",
+    "src/",
+    "examples/",
+    "README.md"
+  ],
   "bin": {
     "sancho-quick-dictionary": "./bin/sancho-quick-dictionary.js"
   },
