@@ -11,6 +11,13 @@ The first supported formats are:
 | `tsv` | Generic tab-separated rows with optional header. |
 | `csv` | Generic comma-separated rows with optional header and quoted fields. |
 
+For popular IME formats that require GPL-covered converters, Sancho uses an
+external-process adapter instead of embedding parser code. The first adapter is
+`imewlconverter`, which can be pointed at a user-installed converter and asked
+to emit one of the supported text formats above. Declared source formats are
+`sogou-scel`, `sogou-text`, `qq-pinyin`, `baidu-ime`, `microsoft-pinyin`, and
+`macos-text-replacements`.
+
 Normalized entries use this shape:
 
 ```json
@@ -40,6 +47,25 @@ sancho-lexicon-importer import \
   --input ~/Library/Rime/luna_pinyin.extended.dict.yaml \
   --output ./data/lexicons/rime-import.json
 ```
+
+Preview a popular IME export through an external converter:
+
+```sh
+sancho-lexicon-importer external-preview \
+  --adapter imewlconverter \
+  --source-format sogou-scel \
+  --converted-format tsv \
+  --input ~/Downloads/user.scel \
+  --tool /usr/local/bin/imewlconverter \
+  -- --converter-input "{input}" --converter-stdout
+```
+
+`{input}` is replaced with the private user dictionary path. If the converter
+requires an output file, include `{output}` in the adapter args; Sancho creates a
+temporary file, reads the converted text, and removes the file after preview or
+import. Replace the example converter flags with the arguments required by the
+locally installed converter. The converter is launched with `execFile` and
+`shell: false`.
 
 Each import creates a rollback snapshot next to the output by default:
 
