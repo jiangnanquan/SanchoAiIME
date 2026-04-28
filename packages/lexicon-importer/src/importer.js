@@ -16,6 +16,7 @@ import { promisify } from "node:util";
 export const SUPPORTED_FORMATS = [
   "rime-custom-phrase",
   "rime-dict",
+  "macos-text-replacements",
   "tsv",
   "csv"
 ];
@@ -61,6 +62,9 @@ export function parseLexiconText(text, options = {}) {
       format,
       startAtDictBody: true
     });
+  }
+  if (format === "macos-text-replacements") {
+    return parseMacosTextReplacementsPlist(text, options);
   }
   return parseDelimitedText(text, options);
 }
@@ -406,6 +410,92 @@ function parseDelimitedText(text, options) {
   }
 
   return { entries, rejectedRows, parsedRows };
+}
+
+function parseMacosTextReplacementsPlist(text, options) {
+  const source = normalizeSource(options.source ?? options.sourceId ?? "macos-text-replacements");
+  const defaultWeight = options.defaultWeight ?? DEFAULT_WEIGHT;
+  const dictionaries = parseXmlPlistDictionaries(text);
+  const entries = [];
+  const rejectedRows = [];
+  let parsedRows = 0;
+
+  for (const dictionary of dictionaries) {
+    parsedRows += 1;
+    try {
+      entries.push(normalizeLexiconEntry({
+        surface: requiredPlistValue(dictionary.values, "phrase"),
+        reading: requiredPlistValue(dictionary.values, "shortcut"),
+        weight: defaultWeight,
+        source,
+        style_tags: ["macos-text-replacement"]
+      }, { defaultWeight, source }));
+    } catch (error) {
+      rejectedRows.push({
+        line: dictionary.line,
+        reason: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  return { entries, rejectedRows, parsedRows };
+}
+
+function parseXmlPlistDictionaries(text) {
+  if (!/<plist\b/i.test(text)) {
+    throw new Error("macOS Text Replacements import expects an XML plist export.");
+  }
+
+  const dictionaries = [];
+  const dictPattern = /<dict\b[^>]*>([\s\S]*?)<\/dict>/gi;
+  let match;
+  while ((match = dictPattern.exec(text)) !== null) {
+    dictionaries.push({
+      line: lineNumberAt(text, match.index),
+      values: parseXmlPlistStringValues(match[1])
+    });
+  }
+  return dictionaries;
+}
+
+function parseXmlPlistStringValues(xml) {
+  const values = new Map();
+  const pairPattern = /<key\b[^>]*>([\s\S]*?)<\/key>\s*<string\b[^>]*>([\s\S]*?)<\/string>/gi;
+  let match;
+  while ((match = pairPattern.exec(xml)) !== null) {
+    values.set(
+      decodeXmlText(match[1]).trim(),
+      decodeXmlText(match[2]).trim()
+    );
+  }
+  return values;
+}
+
+function requiredPlistValue(values, key) {
+  const value = values.get(key);
+  if (value === undefined) {
+    throw new Error(`macOS Text Replacement row missing ${key}.`);
+  }
+  return value;
+}
+
+function decodeXmlText(value) {
+  const namedEntities = {
+    amp: "&",
+    apos: "'",
+    gt: ">",
+    lt: "<",
+    quot: "\""
+  };
+  return String(value)
+    .replaceAll(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replaceAll(/&#x([0-9A-Fa-f]+);/g, (_, code) => String.fromCodePoint(Number.parseInt(code, 16)))
+    .replaceAll(/&#([0-9]+);/g, (_, code) => String.fromCodePoint(Number.parseInt(code, 10)))
+    .replaceAll(/&([A-Za-z]+);/g, (entity, name) => namedEntities[name] ?? entity);
+}
+
+function lineNumberAt(text, index) {
+  return text.slice(0, index).split(/\r\n|\r|\n/).length;
 }
 
 function findRimeDictBodyStart(lines) {
