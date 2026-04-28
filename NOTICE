@@ -1,9 +1,13 @@
 SanchoAiIME
 Copyright 2026 SanchoAiIME contributors
 
-This product includes documentation and design notes for an AI-native input
-method architecture. Third-party components, model weights, external tools,
-and imported user dictionaries are governed by their own licenses and terms.
+This product includes Apache-2.0 source packages, command-line tools, release
+compliance scripts, and documentation for an AI-native input method.
+
+Third-party components, model weights, external conversion tools, cloud
+services, and imported user dictionaries are governed by their own licenses and
+terms. This repository does not vendor third-party source code, model weights,
+GPL converter code, or imported user data.
 
 See THIRD_PARTY_NOTICES.md and MODEL_LICENSES.md before distributing builds
 that bundle dependencies, model artifacts, or conversion tools.
