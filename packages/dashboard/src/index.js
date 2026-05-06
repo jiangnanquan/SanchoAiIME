@@ -9,5 +9,12 @@ export {
   safeJsonForHtml
 } from "./render-html.js";
 export {
+  DEFAULT_LOCALE,
+  SUPPORTED_LOCALES,
+  createTranslator,
+  localeFromEnv,
+  normalizeLocale
+} from "./i18n.js";
+export {
   runCli
 } from "./cli.js";

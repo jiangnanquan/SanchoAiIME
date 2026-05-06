@@ -12,6 +12,12 @@
   "bin": {
     "sancho-quick-dictionary": "./bin/sancho-quick-dictionary.js"
   },
+  "files": [
+    "bin/",
+    "src/",
+    "examples/",
+    "README.md"
+  ],
   "scripts": {
     "test": "node --test test/*.test.js"
   },

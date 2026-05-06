@@ -1,0 +1,53 @@
+{
+  "name": "@sancho-ai-ime/menubar-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "macOS menu bar shell for SanchoAiIME.",
+  "author": "SanchoAiIME contributors",
+  "type": "module",
+  "license": "Apache-2.0",
+  "main": "src/main.js",
+  "scripts": {
+    "dev": "electron .",
+    "pack:mac": "node scripts/pack-mac-dir.js",
+    "package:mac": "node scripts/package-mac.js",
+    "dist:mac": "electron-builder --mac dmg"
+  },
+  "dependencies": {
+    "@sancho-ai-ime/cloud-teacher": "file:../cloud-teacher",
+    "@sancho-ai-ime/dashboard": "file:../dashboard",
+    "@sancho-ai-ime/model-orchestrator": "file:../model-orchestrator",
+    "@sancho-ai-ime/quick-dictionary": "file:../quick-dictionary"
+  },
+  "devDependencies": {
+    "electron": "41.3.0",
+    "electron-builder": "26.8.1"
+  },
+  "build": {
+    "appId": "ai.sancho.ime",
+    "productName": "SanchoAiIME",
+    "directories": {
+      "output": "../../dist/menubar-app"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "mac": {
+      "icon": "assets/icons/icon.icns",
+      "target": [
+        "dir"
+      ],
+      "category": "public.app-category.productivity",
+      "extendInfo": {
+        "LSUIElement": true,
+        "NSHumanReadableCopyright": "Copyright SanchoAiIME contributors"
+      }
+    }
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

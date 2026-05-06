@@ -1,5 +1,6 @@
 export {
   BUILTIN_MODEL_MANIFESTS,
+  QWEN25_05B_INSTRUCT_GGUF_MODEL_ID,
   QWEN35_08B_MODEL_ID,
   loadModelManifest,
   normalizeModelManifest

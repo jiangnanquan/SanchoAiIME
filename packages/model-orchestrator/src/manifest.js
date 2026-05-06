@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { isAbsolute, normalize, posix } from "node:path";
 
 export const QWEN35_08B_MODEL_ID = "qwen3.5-0.8b";
+export const QWEN25_05B_INSTRUCT_GGUF_MODEL_ID = "qwen2.5-0.5b-instruct-q4_k_m";
 
 const BUILTIN_QWEN35_08B = {
   schemaVersion: 1,
@@ -26,8 +27,41 @@ const BUILTIN_QWEN35_08B = {
   }
 };
 
+const BUILTIN_QWEN25_05B_INSTRUCT_GGUF = {
+  schemaVersion: 1,
+  id: QWEN25_05B_INSTRUCT_GGUF_MODEL_ID,
+  name: "Qwen2.5-0.5B-Instruct GGUF Q4_K_M",
+  role: "local-realtime-predictor",
+  source: {
+    type: "huggingface",
+    repository: "lmstudio-community/Qwen2.5-0.5B-Instruct-GGUF",
+    url: "https://huggingface.co/lmstudio-community/Qwen2.5-0.5B-Instruct-GGUF",
+    revision: "main",
+    license: "Apache-2.0"
+  },
+  storage: {
+    directory: QWEN25_05B_INSTRUCT_GGUF_MODEL_ID
+  },
+  artifacts: [
+    {
+      path: "Qwen2.5-0.5B-Instruct-Q4_K_M.gguf",
+      url: "https://huggingface.co/lmstudio-community/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf?download=true",
+      sha256: "fa4d41b65761ed565cac6b5f62e35135d050408b033114a128ab308c02b2e83a",
+      sizeBytes: 397807936,
+      license: "Apache-2.0"
+    }
+  ],
+  benchmark: {
+    prompt: "Sancho local predictor health check. Reply with OK.",
+    iterations: 3,
+    warmup: 1,
+    timeoutMs: 30000
+  }
+};
+
 export const BUILTIN_MODEL_MANIFESTS = Object.freeze({
-  [QWEN35_08B_MODEL_ID]: normalizeModelManifest(BUILTIN_QWEN35_08B)
+  [QWEN35_08B_MODEL_ID]: normalizeModelManifest(BUILTIN_QWEN35_08B),
+  [QWEN25_05B_INSTRUCT_GGUF_MODEL_ID]: normalizeModelManifest(BUILTIN_QWEN25_05B_INSTRUCT_GGUF)
 });
 
 export async function loadModelManifest(identifier = QWEN35_08B_MODEL_ID) {

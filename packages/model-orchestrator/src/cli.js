@@ -18,7 +18,20 @@ import {
   rollbackModelSnapshot
 } from "./maintenance.js";
 
-const HELP = `Usage:
+const HELP_ZH = `用法：
+  sancho-model-orchestrator models plan [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path]
+  sancho-model-orchestrator models bootstrap [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path] [--dry-run] [--allow-network] [--allow-unverified]
+  sancho-model-orchestrator benchmark run [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path] [--runner command] [--iterations n] [--warmup n] [--timeout-ms n] [--prompt text] [-- <runner args>]
+  sancho-model-orchestrator maintenance audit [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path]
+  sancho-model-orchestrator maintenance snapshot [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path] [--snapshot-id id] [--snapshot-dir path]
+  sancho-model-orchestrator maintenance diff [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path] --snapshot-id id [--snapshot-dir path]
+  sancho-model-orchestrator maintenance rollback [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path] --snapshot-id id [--snapshot-dir path] [--dry-run]
+
+模型文件会写入 SANCHO_MODEL_DIR、SANCHO_RUNTIME_DIR/models 或平台默认运行目录，
+默认不会写入被 git 跟踪的源码路径。
+`;
+
+const HELP_EN = `Usage:
   sancho-model-orchestrator models plan [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path]
   sancho-model-orchestrator models bootstrap [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path] [--dry-run] [--allow-network] [--allow-unverified]
   sancho-model-orchestrator benchmark run [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path] [--runner command] [--iterations n] [--warmup n] [--timeout-ms n] [--prompt text] [-- <runner args>]
@@ -34,10 +47,11 @@ tracked source paths by default.
 
 export async function runCli(argv, streams = {}) {
   const stdout = streams.stdout ?? process.stdout;
+  const locale = localeFromEnv(streams.env);
   const [command, subcommand, ...rest] = argv;
 
   if (!command || command === "help" || command === "--help" || command === "-h") {
-    stdout.write(HELP);
+    stdout.write(helpText(locale));
     return 0;
   }
 
@@ -53,7 +67,7 @@ export async function runCli(argv, streams = {}) {
     return await runMaintenanceCommand(subcommand, rest, { stdout });
   }
 
-  throw new Error(`Unknown command: ${command}\n\n${HELP}`);
+  throw new Error(`Unknown command: ${command}\n\n${helpText(locale)}`);
 }
 
 async function runModelsCommand(subcommand, args, streams) {
@@ -78,7 +92,7 @@ async function runModelsCommand(subcommand, args, streams) {
     return 0;
   }
 
-  throw new Error(`Unknown models command: ${subcommand}\n\n${HELP}`);
+  throw new Error(`Unknown models command: ${subcommand}\n\n${helpText(localeFromEnv(streams.env))}`);
 }
 
 async function runBenchmarkCommand(subcommand, args, streams) {
@@ -87,7 +101,7 @@ async function runBenchmarkCommand(subcommand, args, streams) {
   const modelsDir = options["models-dir"] ?? defaultModelsDir();
 
   if (subcommand !== "run") {
-    throw new Error(`Unknown benchmark command: ${subcommand}\n\n${HELP}`);
+    throw new Error(`Unknown benchmark command: ${subcommand}\n\n${helpText(localeFromEnv(streams.env))}`);
   }
 
   const runner = options.runner
@@ -142,7 +156,7 @@ async function runMaintenanceCommand(subcommand, args, streams) {
     return 0;
   }
 
-  throw new Error(`Unknown maintenance command: ${subcommand}\n\n${HELP}`);
+  throw new Error(`Unknown maintenance command: ${subcommand}\n\n${helpText(localeFromEnv(streams.env))}`);
 }
 
 async function loadManifestFromOptions(options) {
@@ -181,4 +195,13 @@ function parseOptions(args, settings = {}) {
   }
 
   return { options, passthrough };
+}
+
+function localeFromEnv(env = process.env) {
+  const raw = String(env?.SANCHO_LOCALE ?? "zh-CN").replace("_", "-").toLowerCase();
+  return raw.startsWith("en") ? "en-US" : "zh-CN";
+}
+
+function helpText(locale) {
+  return locale === "en-US" ? HELP_EN : HELP_ZH;
 }

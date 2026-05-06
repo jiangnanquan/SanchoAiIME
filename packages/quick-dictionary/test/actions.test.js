@@ -173,6 +173,16 @@ test("CLI validates registries and renders action preview entries", async () => 
       await runCli(["actions", "validate", "--registry", registryPath], { stdout }),
       0
     );
+    assert.match(stdout.text, /已验证 2 个动作和 1 个环境/);
+
+    stdout.text = "";
+    assert.equal(
+      await runCli(["actions", "validate", "--registry", registryPath], {
+        stdout,
+        env: { SANCHO_LOCALE: "en-US" }
+      }),
+      0
+    );
     assert.match(stdout.text, /Validated 2 actions and 1 profiles/);
 
     stdout.text = "";

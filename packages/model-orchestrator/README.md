@@ -2,11 +2,16 @@
 
 Local model bootstrap and benchmark helpers for SanchoAiIME.
 
-The first built-in manifest is `qwen3.5-0.8b`, intended as the local realtime
-prediction baseline. The manifest records the upstream source and runtime
-storage policy, but it does not vendor model files. Weight files, tokenizers,
-locks, and benchmark output belong under runtime model directories such as
-`models/`, `SANCHO_MODEL_DIR`, or `SANCHO_RUNTIME_DIR/models`.
+The built-in manifests include:
+
+* `qwen3.5-0.8b`: planned local realtime prediction baseline. It records source
+  and storage policy, but does not list downloadable artifacts yet.
+* `qwen2.5-0.5b-instruct-q4_k_m`: downloadable GGUF model used by the macOS
+  menu bar app's one-click local model setup.
+
+Weight files, tokenizers, locks, and benchmark output belong under runtime
+model directories such as `models/`, `SANCHO_MODEL_DIR`, or
+`SANCHO_RUNTIME_DIR/models`.
 
 ## CLI
 
@@ -14,6 +19,12 @@ Inspect the built-in Qwen baseline without downloading anything:
 
 ```sh
 sancho-model-orchestrator models plan --model qwen3.5-0.8b
+```
+
+Download the lightweight GGUF model used by the macOS app:
+
+```sh
+sancho-model-orchestrator models bootstrap --model qwen2.5-0.5b-instruct-q4_k_m --allow-network
 ```
 
 Bootstrap from a manifest that lists exact artifact URLs and checksums:

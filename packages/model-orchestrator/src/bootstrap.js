@@ -143,7 +143,19 @@ export async function bootstrapModel(manifestInput, options = {}) {
     const temporaryPath = `${artifact.targetPath}.download-${process.pid}`;
     try {
       const downloaded = await downloadArtifact(url, temporaryPath, {
-        fetchImpl: options.fetchImpl
+        fetchImpl: options.fetchImpl,
+        expectedSizeBytes: artifact.sizeBytes,
+        onProgress: (progress) => {
+          options.onDownloadProgress?.({
+            artifact: {
+              path: artifact.path,
+              targetPath: artifact.targetPath,
+              url: artifact.url,
+              sizeBytes: artifact.sizeBytes
+            },
+            ...progress
+          });
+        }
       });
       await verifyArtifactFile(artifact, temporaryPath);
       await rename(temporaryPath, artifact.targetPath);
@@ -245,10 +257,21 @@ async function inspectArtifact(artifact) {
 
 async function downloadArtifact(url, targetPath, options = {}) {
   if (url.protocol === "file:") {
+    options.onProgress?.({
+      transferredBytes: 0,
+      totalBytes: options.expectedSizeBytes,
+      percent: 0
+    });
     await copyFile(fileURLToPath(url), targetPath);
+    const sizeBytes = (await stat(targetPath)).size;
+    options.onProgress?.({
+      transferredBytes: sizeBytes,
+      totalBytes: options.expectedSizeBytes ?? sizeBytes,
+      percent: 1
+    });
     return {
       sha256: await hashFile(targetPath),
-      sizeBytes: (await stat(targetPath)).size
+      sizeBytes
     };
   }
 
@@ -263,6 +286,14 @@ async function downloadArtifact(url, targetPath, options = {}) {
   }
   if (!response.body) {
     const data = Buffer.from(await response.arrayBuffer());
+    const totalBytes = parseContentLength(response.headers.get("content-length"))
+      ?? options.expectedSizeBytes
+      ?? data.length;
+    options.onProgress?.({
+      transferredBytes: data.length,
+      totalBytes,
+      percent: totalBytes > 0 ? Math.min(data.length / totalBytes, 1) : undefined
+    });
     await writeFile(targetPath, data);
     return {
       sha256: await hashFile(targetPath),
@@ -272,10 +303,22 @@ async function downloadArtifact(url, targetPath, options = {}) {
 
   const hash = createHash("sha256");
   let sizeBytes = 0;
+  const totalBytes = parseContentLength(response.headers.get("content-length"))
+    ?? options.expectedSizeBytes;
+  options.onProgress?.({
+    transferredBytes: 0,
+    totalBytes,
+    percent: totalBytes === undefined ? undefined : 0
+  });
   const hasher = new Transform({
     transform(chunk, _encoding, callback) {
       hash.update(chunk);
       sizeBytes += chunk.length;
+      options.onProgress?.({
+        transferredBytes: sizeBytes,
+        totalBytes,
+        percent: totalBytes === undefined ? undefined : Math.min(sizeBytes / totalBytes, 1)
+      });
       callback(null, chunk);
     }
   });
@@ -289,6 +332,14 @@ async function downloadArtifact(url, targetPath, options = {}) {
     sha256: hash.digest("hex"),
     sizeBytes
   };
+}
+
+function parseContentLength(value) {
+  if (!value) {
+    return undefined;
+  }
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number > 0 ? number : undefined;
 }
 
 function assertInside(root, target, name) {

@@ -9,9 +9,14 @@
     "packages/*"
   ],
   "scripts": {
+    "dev": "./dev.command",
     "test": "node --test packages/*/test/*.test.js scripts/*.test.js",
     "release:check": "node scripts/check-release-gate.js",
-    "release:sbom": "node scripts/generate-release-sbom.js"
+    "release:sbom": "node scripts/generate-release-sbom.js",
+    "release:pack": "node scripts/pack-release.js",
+    "menubar:dev": "npm run dev --workspace @sancho-ai-ime/menubar-app",
+    "menubar:pack:mac": "npm run pack:mac --workspace @sancho-ai-ime/menubar-app",
+    "menubar:package:mac": "npm run package:mac --workspace @sancho-ai-ime/menubar-app"
   },
   "engines": {
     "node": ">=22"

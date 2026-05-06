@@ -22,6 +22,18 @@ test("loads the built-in Qwen baseline manifest without artifacts", async () => 
   assert.deepEqual(manifest.artifacts, []);
 });
 
+test("loads the downloadable Qwen GGUF manifest with verified artifact metadata", async () => {
+  const manifest = await loadModelManifest("qwen2.5-0.5b-instruct-q4_k_m");
+
+  assert.equal(manifest.source.repository, "lmstudio-community/Qwen2.5-0.5B-Instruct-GGUF");
+  assert.equal(manifest.artifacts[0].path, "Qwen2.5-0.5B-Instruct-Q4_K_M.gguf");
+  assert.equal(
+    manifest.artifacts[0].sha256,
+    "fa4d41b65761ed565cac6b5f62e35135d050408b033114a128ab308c02b2e83a"
+  );
+  assert.equal(manifest.artifacts[0].sizeBytes, 397807936);
+});
+
 test("rejects artifact paths that escape the model directory", () => {
   assert.throws(
     () => normalizeModelManifest({
@@ -109,6 +121,7 @@ test("downloads remote artifacts through an explicit fetch implementation", asyn
   const content = Buffer.from("remote artifact");
   const sha256 = createHash("sha256").update(content).digest("hex");
   const requestedUrls = [];
+  const progressEvents = [];
 
   try {
     const manifest = normalizeModelManifest({
@@ -126,6 +139,9 @@ test("downloads remote artifacts through an explicit fetch implementation", asyn
     const result = await bootstrapModel(manifest, {
       modelsDir: directory,
       allowNetwork: true,
+      onDownloadProgress: (progress) => {
+        progressEvents.push(progress);
+      },
       fetchImpl: async (url) => {
         requestedUrls.push(url);
         return new Response(content);
@@ -133,6 +149,8 @@ test("downloads remote artifacts through an explicit fetch implementation", asyn
     });
 
     assert.deepEqual(requestedUrls, ["https://example.com/model.gguf"]);
+    assert.equal(progressEvents.at(-1).transferredBytes, content.length);
+    assert.equal(progressEvents.at(-1).percent, 1);
     assert.equal(result.artifacts[0].status, "downloaded");
     assert.equal(await readFile(result.artifacts[0].targetPath, "utf8"), "remote artifact");
   } finally {

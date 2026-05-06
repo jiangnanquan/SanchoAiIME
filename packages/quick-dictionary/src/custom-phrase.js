@@ -14,6 +14,9 @@ export const END_MARKER = "# <<< SanchoAiIME managed: quick-dictionary";
 
 const DEFAULT_WEIGHT = 99;
 const MAX_WEIGHT = 999999;
+const MIN_CANDIDATE_POSITION = 1;
+const MAX_CANDIDATE_POSITION = 9;
+const POSITION_MARKER_PREFIX = "# @sancho candidate_position=";
 
 export function defaultCustomPhrasePath(home = homedir()) {
   return join(home, "Library", "Rime", "custom_phrase.txt");
@@ -34,8 +37,13 @@ export function normalizeEntry(input) {
   );
   const code = cleanTextField(input.code ?? input.reading, "code");
   const weight = normalizeWeight(input.weight ?? DEFAULT_WEIGHT);
+  const candidatePosition = normalizeCandidatePosition(
+    input.candidatePosition ?? input.candidate_position ?? input.position
+  );
 
-  return { surface, code, weight };
+  return candidatePosition === undefined
+    ? { surface, code, weight }
+    : { surface, code, weight, candidatePosition };
 }
 
 export function normalizeEntries(entries) {
@@ -56,6 +64,109 @@ export function normalizeEntries(entries) {
 export function renderEntry(entry) {
   const normalized = normalizeEntry(entry);
   return `${normalized.surface}\t${normalized.code}\t${normalized.weight}`;
+}
+
+export function renderUserEntry(entry) {
+  const normalized = normalizeEntry(entry);
+  const line = renderEntry(normalized);
+  return normalized.candidatePosition === undefined
+    ? line
+    : `${POSITION_MARKER_PREFIX}${normalized.candidatePosition}\n${line}`;
+}
+
+export function parseCustomPhraseText(text) {
+  if (typeof text !== "string") {
+    throw new TypeError("Custom phrase content must be a string.");
+  }
+
+  const entries = [];
+  const invalidRows = [];
+  let inManagedRegion = false;
+  let blankRowCount = 0;
+  let commentRowCount = 0;
+  let pendingCandidatePosition;
+
+  text.split(/\r?\n/).forEach((line, index) => {
+    const lineNumber = index + 1;
+    const trimmed = line.trim();
+    if (!trimmed) {
+      blankRowCount += 1;
+      return;
+    }
+    if (trimmed === BEGIN_MARKER) {
+      inManagedRegion = true;
+      return;
+    }
+    if (trimmed === END_MARKER) {
+      inManagedRegion = false;
+      return;
+    }
+    if (trimmed.startsWith("#")) {
+      commentRowCount += 1;
+      const position = parseCandidatePositionMarker(trimmed);
+      if (position !== undefined) {
+        pendingCandidatePosition = position;
+      }
+      return;
+    }
+
+    const parts = line.split("\t");
+    if (parts.length < 2) {
+      pendingCandidatePosition = undefined;
+      invalidRows.push({
+        lineNumber,
+        raw: line,
+        reason: "missing-code"
+      });
+      return;
+    }
+
+    try {
+      const entry = normalizeEntry({
+        surface: parts[0],
+        code: parts[1],
+        weight: parts[2] === undefined || parts[2] === "" ? DEFAULT_WEIGHT : parts[2],
+        candidatePosition: pendingCandidatePosition
+      });
+      pendingCandidatePosition = undefined;
+      entries.push({
+        ...entry,
+        preview: decodeCustomPhraseEscapes(entry.surface),
+        source: inManagedRegion ? "managed" : "user",
+        lineNumber
+      });
+    } catch (error) {
+      pendingCandidatePosition = undefined;
+      invalidRows.push({
+        lineNumber,
+        raw: line,
+        reason: error.message
+      });
+    }
+  });
+
+  return {
+    entries,
+    userEntries: entries.filter((entry) => entry.source === "user"),
+    managedEntries: entries.filter((entry) => entry.source === "managed"),
+    summary: {
+      entryCount: entries.length,
+      userEntryCount: entries.filter((entry) => entry.source === "user").length,
+      managedEntryCount: entries.filter((entry) => entry.source === "managed").length,
+      blankRowCount,
+      commentRowCount,
+      invalidRowCount: invalidRows.length
+    },
+    invalidRows
+  };
+}
+
+export function decodeCustomPhraseEscapes(value) {
+  return String(value)
+    .replaceAll("\\r", "\r")
+    .replaceAll("\\n", "\n")
+    .replaceAll("\\t", "\t")
+    .replaceAll("\\s", " ");
 }
 
 export function renderManagedRegion(entries, options = {}) {
@@ -93,6 +204,27 @@ export function updateManagedRegion(existingText, entries) {
   return `${existingText.slice(0, begin)}${managedRegion}${existingText.slice(replaceEnd)}`;
 }
 
+export function updateUserEntries(existingText, entries) {
+  if (typeof existingText !== "string") {
+    throw new TypeError("Existing custom phrase content must be a string.");
+  }
+
+  assertMarkerState(existingText);
+
+  const lineEnding = detectLineEnding(existingText);
+  const userLines = normalizeEntries(entries).map(renderUserEntry);
+  const userRegion = userLines.length > 0
+    ? `${userLines.join(lineEnding)}${lineEnding}`
+    : "";
+  const begin = existingText.indexOf(BEGIN_MARKER);
+
+  if (begin === -1) {
+    return userRegion;
+  }
+
+  return `${userRegion}${existingText.slice(begin)}`;
+}
+
 export async function loadEntriesFromJsonFile(path) {
   const raw = await readFile(path, "utf8");
   const parsed = JSON.parse(raw);
@@ -108,6 +240,32 @@ export async function syncCustomPhraseFile(options) {
   const entries = normalizeEntries(options.entries);
   const existingText = await readUtf8IfExists(customPhrasePath);
   const nextText = updateManagedRegion(existingText, entries);
+
+  if (options.dryRun) {
+    return {
+      changed: existingText !== nextText,
+      content: nextText,
+      entries,
+      path: customPhrasePath
+    };
+  }
+
+  if (existingText !== nextText) {
+    await atomicWriteText(customPhrasePath, nextText);
+  }
+
+  return {
+    changed: existingText !== nextText,
+    entries,
+    path: customPhrasePath
+  };
+}
+
+export async function syncUserCustomPhraseEntries(options) {
+  const customPhrasePath = options.customPhrasePath ?? defaultCustomPhrasePath();
+  const entries = normalizeEntries(options.entries ?? []);
+  const existingText = await readUtf8IfExists(customPhrasePath);
+  const nextText = updateUserEntries(existingText, entries);
 
   if (options.dryRun) {
     return {
@@ -175,6 +333,30 @@ function normalizeWeight(value) {
     );
   }
   return weight;
+}
+
+function normalizeCandidatePosition(value) {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+  const position = Number(value);
+  if (
+    !Number.isInteger(position)
+    || position < MIN_CANDIDATE_POSITION
+    || position > MAX_CANDIDATE_POSITION
+  ) {
+    throw new Error(
+      `Quick dictionary candidate position must be an integer from ${MIN_CANDIDATE_POSITION} to ${MAX_CANDIDATE_POSITION}.`
+    );
+  }
+  return position;
+}
+
+function parseCandidatePositionMarker(line) {
+  if (!line.startsWith(POSITION_MARKER_PREFIX)) {
+    return undefined;
+  }
+  return normalizeCandidatePosition(line.slice(POSITION_MARKER_PREFIX.length).trim());
 }
 
 function assertMarkerState(text) {

@@ -1,8 +1,32 @@
 {
-  "title": "SanchoAiIME Dashboard",
+  "title": "SanchoAiIME 控制台",
   "quickDictionary": {
     "path": "/Users/jnq/Library/Rime/custom_phrase.txt",
     "managedRegionStatus": "ready",
+    "customEntries": [
+      {
+        "surface": "DuckDB",
+        "preview": "DuckDB",
+        "code": "du",
+        "weight": 50,
+        "lineNumber": 4
+      },
+      {
+        "surface": "静夜思\\n\\s\\s李白",
+        "preview": "静夜思\n  李白",
+        "code": "jys",
+        "weight": 50,
+        "lineNumber": 3
+      }
+    ],
+    "customSummary": {
+      "entryCount": 4,
+      "userEntryCount": 2,
+      "managedEntryCount": 2,
+      "blankRowCount": 0,
+      "commentRowCount": 1,
+      "invalidRowCount": 0
+    },
     "entries": [
       {
         "surface": "SanchoExo Codex DeepSeek",
@@ -10,11 +34,28 @@
         "weight": 99
       },
       {
-        "surface": "Qwen local predictor",
+        "surface": "Qwen 本地预测",
         "code": "qwp",
         "weight": 90
       }
     ]
+  },
+  "inputMethodSettings": {
+    "status": "ready",
+    "outputScript": "simplified",
+    "colorScheme": "sancho_mist",
+    "candidateLayout": "stacked",
+    "textOrientation": "horizontal",
+    "pageSize": 5,
+    "fontPoint": 18,
+    "cornerRadius": 8,
+    "inlinePreedit": true,
+    "customSkinName": "Sancho Mist",
+    "aiSkinAssistant": {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "status": "available"
+    }
   },
   "actionRegistry": {
     "profiles": [
@@ -36,9 +77,9 @@
       {
         "id": "snippet.qwen",
         "code": "qwp",
-        "label": "Qwen local predictor",
+        "label": "Qwen 本地预测",
         "kind": "insert_text",
-        "text": "Qwen local predictor",
+        "text": "Qwen 本地预测",
         "risk": "normal",
         "weight": 90
       },
@@ -55,7 +96,7 @@
       {
         "id": "command.release-check",
         "code": "rlc",
-        "label": "Run release gate",
+        "label": "运行发布检查",
         "kind": "run_command",
         "command": "npm",
         "args": [

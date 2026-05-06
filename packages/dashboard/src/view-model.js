@@ -1,4 +1,6 @@
-export const DEFAULT_DASHBOARD_TITLE = "SanchoAiIME Dashboard";
+import { createTranslator } from "./i18n.js";
+
+export const DEFAULT_DASHBOARD_TITLE = "SanchoAiIME 控制台";
 
 const DEFAULT_MODEL_CARD = {
   id: "qwen3.5-0.8b",
@@ -30,10 +32,25 @@ const INSERTION_ACTION_KINDS = new Set(["insert_text", "copy_text"]);
 const SENSITIVE_ENV_NAME = /(?:api[_-]?key|token|secret|password|credential|auth|bearer)/i;
 const SENSITIVE_VALUE = /(?:sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16})/;
 const REDACTED_VALUE = "[redacted]";
+const DEFAULT_INPUT_METHOD_SKIN = Object.freeze({
+  name: "Sancho Custom",
+  backColor: "#F7FAFC",
+  borderColor: "#D9E2EC",
+  textColor: "#1F2933",
+  candidateTextColor: "#243B53",
+  commentTextColor: "#829AB1",
+  labelColor: "#627D98",
+  highlightedBackColor: "#147D64",
+  highlightedTextColor: "#FFFFFF",
+  highlightedLabelColor: "#D8FFF2",
+  highlightedCommentColor: "#C6F7E2"
+});
 
-export function createDashboardViewModel(input = {}) {
+export function createDashboardViewModel(input = {}, options = {}) {
+  const translator = createTranslator(options.locale);
+  const t = translator.t;
   const raw = expectPlainObject(input, "Dashboard input");
-  const title = cleanOptionalString(raw.title, "Dashboard title") ?? DEFAULT_DASHBOARD_TITLE;
+  const title = cleanOptionalString(raw.title, "Dashboard title") ?? t("dashboard.title");
   const quickDictionary = normalizeQuickDictionary(
     raw.quickDictionary ?? raw.quick_dictionary ?? {}
   );
@@ -44,6 +61,9 @@ export function createDashboardViewModel(input = {}) {
     }
   );
   const models = normalizeModels(raw.models ?? raw.modelManifests ?? raw.model_manifests);
+  const inputMethodSettings = normalizeInputMethodSettings(
+    raw.inputMethodSettings ?? raw.input_method_settings ?? raw.rimeSettings ?? raw.rime_settings
+  );
   const imports = normalizeImportPreviews(raw.imports ?? raw.importPreviews ?? raw.import_previews);
   const maintenanceJobs = normalizeMaintenanceJobs(
     raw.maintenanceJobs ?? raw.maintenance_jobs ?? raw.jobs
@@ -67,15 +87,17 @@ export function createDashboardViewModel(input = {}) {
       releaseChecks
     }),
     navigation: [
-      { id: "quick-dictionary", label: "Dictionary" },
-      { id: "actions", label: "Actions" },
-      { id: "profiles", label: "Profiles" },
-      { id: "models", label: "Models" },
-      { id: "imports", label: "Imports" },
-      { id: "maintenance", label: "Maintenance" },
-      { id: "release", label: "Release" }
+      { id: "quick-dictionary", label: t("nav.quickDictionary") },
+      { id: "input-method", label: t("nav.inputMethod") },
+      { id: "actions", label: t("nav.actions") },
+      { id: "profiles", label: t("nav.profiles") },
+      { id: "models", label: t("nav.models") },
+      { id: "imports", label: t("nav.imports") },
+      { id: "maintenance", label: t("nav.maintenance") },
+      { id: "release", label: t("nav.release") }
     ],
     quickDictionary,
+    inputMethodSettings,
     actions: registry.actions,
     profiles: registry.profiles,
     models,
@@ -85,15 +107,28 @@ export function createDashboardViewModel(input = {}) {
   };
 }
 
-export function createSampleDashboardInput() {
+export function createSampleDashboardInput(options = {}) {
+  const { t } = createTranslator(options.locale);
   return {
-    title: DEFAULT_DASHBOARD_TITLE,
+    title: t("dashboard.title"),
     quickDictionary: {
       path: "/Users/jnq/Library/Rime/custom_phrase.txt",
       managedRegionStatus: "ready",
+      customEntries: [
+        { surface: "DuckDB", preview: "DuckDB", code: "du", weight: 50, lineNumber: 4 },
+        { surface: "静夜思\\n\\s\\s李白", preview: "静夜思\n  李白", code: "jys", weight: 50, lineNumber: 3 }
+      ],
+      customSummary: {
+        entryCount: 4,
+        userEntryCount: 2,
+        managedEntryCount: 2,
+        blankRowCount: 0,
+        commentRowCount: 1,
+        invalidRowCount: 0
+      },
       entries: [
         { surface: "SanchoExo Codex DeepSeek", code: "cds", weight: 99 },
-        { surface: "Qwen local predictor", code: "qwp", weight: 90 }
+        { surface: "Qwen 本地预测", code: "qwp", weight: 90 }
       ]
     },
     actionRegistry: {
@@ -116,9 +151,9 @@ export function createSampleDashboardInput() {
         {
           id: "snippet.qwen",
           code: "qwp",
-          label: "Qwen local predictor",
+          label: "Qwen 本地预测",
           kind: "insert_text",
-          text: "Qwen local predictor",
+          text: "Qwen 本地预测",
           risk: "normal",
           weight: 90
         },
@@ -135,7 +170,7 @@ export function createSampleDashboardInput() {
         {
           id: "command.release-check",
           code: "rlc",
-          label: "Run release gate",
+          label: "运行发布检查",
           kind: "run_command",
           command: "npm",
           args: ["run", "release:check"],
@@ -143,6 +178,45 @@ export function createSampleDashboardInput() {
           weight: 80
         }
       ]
+    },
+    inputMethodSettings: {
+      status: "ready",
+      outputScript: "simplified",
+      colorScheme: "sancho_mist",
+      candidateLayout: "stacked",
+      textOrientation: "horizontal",
+      pageSize: 5,
+      fontPoint: 18,
+      cornerRadius: 8,
+      inlinePreedit: true,
+      customSkinName: "Sancho Mist",
+      customSkin: DEFAULT_INPUT_METHOD_SKIN,
+      aiSkinAssistant: {
+        provider: "deepseek",
+        model: "deepseek-v4-flash",
+        status: "available"
+      },
+      predictor: {
+        enabled: true,
+        status: "ready",
+        service: "running",
+        running: true,
+        endpoint: "http://127.0.0.1:18840",
+        mode: "lexicon",
+        modelStatus: "ready",
+        timeoutMs: 80,
+        candidateLimit: 12,
+        minCodeLength: 2,
+        luaInstalled: true,
+        filterPatched: true,
+        runner: {
+          provider: "none",
+          enabled: false,
+          configured: false,
+          cacheSize: 0,
+          pendingCount: 0
+        }
+      }
     },
     models: [
       {
@@ -208,6 +282,18 @@ function normalizeQuickDictionary(input) {
     : expectPlainObject(input, "Quick dictionary input");
   const entries = normalizeArray(raw.entries ?? raw.phrases ?? [], "Quick dictionary entries")
     .map(normalizeQuickDictionaryEntry);
+  const customEntries = normalizeArray(
+    raw.customEntries ?? raw.custom_entries ?? raw.userEntries ?? raw.user_entries ?? [],
+    "Custom phrase entries"
+  ).map(normalizeCustomPhraseEntry);
+  const invalidRows = normalizeArray(
+    raw.invalidRows ?? raw.invalid_rows ?? [],
+    "Custom phrase invalid rows"
+  ).map(normalizeInvalidCustomPhraseRow);
+  const customSummary = normalizeCustomPhraseSummary(
+    raw.customSummary ?? raw.custom_summary,
+    { customEntries, entries, invalidRows }
+  );
 
   return {
     path: cleanOptionalString(raw.path, "Quick dictionary path")
@@ -219,8 +305,13 @@ function normalizeQuickDictionary(input) {
     lastSyncedAt: cleanOptionalString(raw.lastSyncedAt ?? raw.last_synced_at, "Last synced at"),
     summary: {
       entryCount: entries.length,
+      customEntryCount: customEntries.length,
+      invalidRowCount: invalidRows.length,
       averageWeight: average(entries.map((entry) => entry.weight))
     },
+    customSummary,
+    customEntries,
+    invalidRows,
     entries
   };
 }
@@ -231,6 +322,61 @@ function normalizeQuickDictionaryEntry(input) {
     surface: cleanRequiredString(raw.surface ?? raw.text ?? raw.phrase, "Entry surface"),
     code: cleanRequiredString(raw.code ?? raw.reading, "Entry code"),
     weight: normalizeInteger(raw.weight ?? 99, "Entry weight", { min: 0, max: 999999 })
+  };
+}
+
+function normalizeCustomPhraseEntry(input) {
+  const raw = expectPlainObject(input, "Custom phrase entry");
+  const entry = normalizeQuickDictionaryEntry(raw);
+  const candidatePosition = normalizeOptionalInteger(
+    raw.candidatePosition ?? raw.candidate_position ?? raw.position,
+    "Custom phrase candidate position"
+  );
+  return {
+    ...entry,
+    preview: cleanOptionalString(raw.preview, "Custom phrase preview") ?? entry.surface,
+    source: cleanOptionalString(raw.source, "Custom phrase source") ?? "user",
+    lineNumber: normalizeOptionalInteger(raw.lineNumber ?? raw.line_number, "Custom phrase line number"),
+    candidatePosition
+  };
+}
+
+function normalizeInvalidCustomPhraseRow(input) {
+  const raw = expectPlainObject(input, "Invalid custom phrase row");
+  return {
+    lineNumber: normalizeOptionalInteger(raw.lineNumber ?? raw.line_number, "Invalid row line number"),
+    raw: cleanOptionalString(raw.raw, "Invalid row raw") ?? "",
+    reason: cleanOptionalString(raw.reason, "Invalid row reason") ?? "unknown"
+  };
+}
+
+function normalizeCustomPhraseSummary(input, fallback) {
+  const raw = input === undefined || input === null
+    ? {}
+    : expectPlainObject(input, "Custom phrase summary");
+  return {
+    entryCount: normalizeOptionalInteger(raw.entryCount ?? raw.entry_count, "Custom phrase entry count")
+      ?? (fallback.customEntries.length + fallback.entries.length),
+    userEntryCount: normalizeOptionalInteger(
+      raw.userEntryCount ?? raw.user_entry_count,
+      "Custom phrase user entry count"
+    ) ?? fallback.customEntries.length,
+    managedEntryCount: normalizeOptionalInteger(
+      raw.managedEntryCount ?? raw.managed_entry_count,
+      "Custom phrase managed entry count"
+    ) ?? fallback.entries.length,
+    blankRowCount: normalizeOptionalInteger(
+      raw.blankRowCount ?? raw.blank_row_count,
+      "Custom phrase blank row count"
+    ) ?? 0,
+    commentRowCount: normalizeOptionalInteger(
+      raw.commentRowCount ?? raw.comment_row_count,
+      "Custom phrase comment row count"
+    ) ?? 0,
+    invalidRowCount: normalizeOptionalInteger(
+      raw.invalidRowCount ?? raw.invalid_row_count,
+      "Custom phrase invalid row count"
+    ) ?? fallback.invalidRows.length
   };
 }
 
@@ -453,6 +599,156 @@ function normalizeImportPreviews(input) {
   });
 }
 
+function normalizeInputMethodSettings(input) {
+  const raw = input === undefined || input === null
+    ? {}
+    : expectPlainObject(input, "Input method settings");
+  return {
+    status: cleanOptionalString(raw.status, "Input method settings status") ?? "unknown",
+    outputScript: cleanOptionalString(
+      raw.outputScript ?? raw.output_script,
+      "Input method output script"
+    ) ?? "unknown",
+    colorScheme: cleanOptionalString(
+      raw.colorScheme ?? raw.color_scheme,
+      "Input method color scheme"
+    ) ?? "unknown",
+    candidateLayout: cleanOptionalString(
+      raw.candidateLayout ?? raw.candidate_layout,
+      "Input method candidate layout"
+    ) ?? "unknown",
+    textOrientation: cleanOptionalString(
+      raw.textOrientation ?? raw.text_orientation,
+      "Input method text orientation"
+    ) ?? "unknown",
+    pageSize: normalizeOptionalInteger(raw.pageSize ?? raw.page_size, "Input method page size"),
+    fontPoint: normalizeOptionalInteger(raw.fontPoint ?? raw.font_point, "Input method font point"),
+    cornerRadius: normalizeOptionalInteger(
+      raw.cornerRadius ?? raw.corner_radius,
+      "Input method corner radius"
+    ),
+    inlinePreedit: normalizeOptionalBoolean(
+      raw.inlinePreedit ?? raw.inline_preedit,
+      "Input method inline preedit"
+    ),
+    customSkin: normalizeInputMethodSkin(raw.customSkin ?? raw.custom_skin),
+    customSkinName: cleanOptionalString(
+      raw.customSkinName ?? raw.custom_skin_name,
+      "Input method custom skin name"
+    ) ?? cleanOptionalString(raw.customSkin?.name ?? raw.custom_skin?.name, "Input method custom skin name"),
+    aiSkinAssistant: normalizeAiSkinAssistant(raw.aiSkinAssistant ?? raw.ai_skin_assistant),
+    predictor: normalizePredictorStatus(raw.predictor)
+  };
+}
+
+function normalizeInputMethodSkin(input) {
+  const raw = input === undefined || input === null
+    ? {}
+    : expectPlainObject(input, "Input method custom skin");
+  return {
+    name: cleanOptionalString(raw.name, "Input method custom skin name")
+      ?? DEFAULT_INPUT_METHOD_SKIN.name,
+    backColor: normalizeHexColor(raw.backColor ?? raw.back_color, "Input method skin background")
+      ?? DEFAULT_INPUT_METHOD_SKIN.backColor,
+    borderColor: normalizeHexColor(raw.borderColor ?? raw.border_color, "Input method skin border")
+      ?? DEFAULT_INPUT_METHOD_SKIN.borderColor,
+    textColor: normalizeHexColor(raw.textColor ?? raw.text_color, "Input method skin preedit text")
+      ?? DEFAULT_INPUT_METHOD_SKIN.textColor,
+    candidateTextColor: normalizeHexColor(
+      raw.candidateTextColor ?? raw.candidate_text_color,
+      "Input method skin candidate text"
+    ) ?? DEFAULT_INPUT_METHOD_SKIN.candidateTextColor,
+    commentTextColor: normalizeHexColor(
+      raw.commentTextColor ?? raw.comment_text_color,
+      "Input method skin comment text"
+    ) ?? DEFAULT_INPUT_METHOD_SKIN.commentTextColor,
+    labelColor: normalizeHexColor(raw.labelColor ?? raw.label_color, "Input method skin label")
+      ?? DEFAULT_INPUT_METHOD_SKIN.labelColor,
+    highlightedBackColor: normalizeHexColor(
+      raw.highlightedBackColor ?? raw.highlighted_back_color,
+      "Input method skin highlighted background"
+    ) ?? DEFAULT_INPUT_METHOD_SKIN.highlightedBackColor,
+    highlightedTextColor: normalizeHexColor(
+      raw.highlightedTextColor ?? raw.highlighted_text_color,
+      "Input method skin highlighted text"
+    ) ?? DEFAULT_INPUT_METHOD_SKIN.highlightedTextColor,
+    highlightedLabelColor: normalizeHexColor(
+      raw.highlightedLabelColor ?? raw.highlighted_label_color,
+      "Input method skin highlighted label"
+    ) ?? DEFAULT_INPUT_METHOD_SKIN.highlightedLabelColor,
+    highlightedCommentColor: normalizeHexColor(
+      raw.highlightedCommentColor ?? raw.highlighted_comment_color,
+      "Input method skin highlighted comment"
+    ) ?? DEFAULT_INPUT_METHOD_SKIN.highlightedCommentColor
+  };
+}
+
+function normalizeAiSkinAssistant(input) {
+  const raw = input === undefined || input === null
+    ? {}
+    : expectPlainObject(input, "AI skin assistant");
+  return {
+    provider: cleanOptionalString(raw.provider, "AI skin assistant provider") ?? "deepseek",
+    model: cleanOptionalString(raw.model, "AI skin assistant model") ?? "deepseek-v4-flash",
+    status: cleanOptionalString(raw.status, "AI skin assistant status") ?? "available"
+  };
+}
+
+function normalizePredictorStatus(input) {
+  const raw = input === undefined || input === null
+    ? {}
+    : expectPlainObject(input, "Predictor status");
+  return {
+    enabled: normalizeOptionalBoolean(raw.enabled, "Predictor enabled") ?? false,
+    status: cleanOptionalString(raw.status, "Predictor status") ?? "unknown",
+    service: cleanOptionalString(raw.service, "Predictor service") ?? "unknown",
+    running: normalizeOptionalBoolean(raw.running, "Predictor running") ?? false,
+    endpoint: cleanOptionalString(raw.endpoint, "Predictor endpoint"),
+    mode: cleanOptionalString(raw.mode, "Predictor mode") ?? "unknown",
+    modelStatus: cleanOptionalString(raw.modelStatus ?? raw.model_status, "Predictor model status") ?? "unknown",
+    modelName: cleanOptionalString(raw.modelName ?? raw.model_name, "Predictor model name"),
+    modelDir: cleanOptionalString(raw.modelDir ?? raw.model_dir, "Predictor model directory"),
+    timeoutMs: normalizeOptionalInteger(raw.timeoutMs ?? raw.timeout_ms, "Predictor timeout ms"),
+    candidateLimit: normalizeOptionalInteger(
+      raw.candidateLimit ?? raw.candidate_limit,
+      "Predictor candidate limit"
+    ),
+    minCodeLength: normalizeOptionalInteger(
+      raw.minCodeLength ?? raw.min_code_length,
+      "Predictor minimum code length"
+    ),
+    luaInstalled: normalizeOptionalBoolean(raw.luaInstalled ?? raw.lua_installed, "Predictor Lua installed") ?? false,
+    filterPatched: normalizeOptionalBoolean(raw.filterPatched ?? raw.filter_patched, "Predictor filter patched") ?? false,
+    lexiconEntryCount: normalizeOptionalInteger(
+      raw.lexiconEntryCount ?? raw.lexicon_entry_count,
+      "Predictor lexicon entry count"
+    ),
+    runner: normalizePredictorRunner(raw.runner),
+    error: cleanOptionalString(raw.error, "Predictor error")
+  };
+}
+
+function normalizePredictorRunner(input) {
+  const raw = input === undefined || input === null
+    ? {}
+    : expectPlainObject(input, "Predictor runner");
+  return {
+    provider: cleanOptionalString(raw.provider, "Predictor runner provider") ?? "none",
+    enabled: normalizeOptionalBoolean(raw.enabled, "Predictor runner enabled") ?? false,
+    configured: normalizeOptionalBoolean(raw.configured, "Predictor runner configured") ?? false,
+    endpoint: cleanOptionalString(raw.endpoint, "Predictor runner endpoint"),
+    model: cleanOptionalString(raw.model, "Predictor runner model"),
+    timeoutMs: normalizeOptionalInteger(raw.timeoutMs ?? raw.timeout_ms, "Predictor runner timeout"),
+    cacheSize: normalizeOptionalInteger(raw.cacheSize ?? raw.cache_size, "Predictor runner cache size") ?? 0,
+    pendingCount: normalizeOptionalInteger(raw.pendingCount ?? raw.pending_count, "Predictor runner pending count") ?? 0,
+    lastSuccessAt: cleanOptionalString(
+      raw.lastSuccessAt ?? raw.last_success_at,
+      "Predictor runner last success"
+    ),
+    lastError: cleanOptionalString(raw.lastError ?? raw.last_error, "Predictor runner last error")
+  };
+}
+
 function normalizeMaintenanceJobs(input) {
   return normalizeArray(input ?? [], "Maintenance jobs").map((item) => {
     const raw = expectPlainObject(item, "Maintenance job");
@@ -506,7 +802,7 @@ function normalizeReleaseChecks(input) {
 function buildSummary(parts) {
   const releaseStatus = aggregateStatus(parts.releaseChecks.map((check) => check.status));
   return {
-    quickDictionaryEntries: parts.quickDictionary.entries.length,
+    quickDictionaryEntries: parts.quickDictionary.customSummary.entryCount,
     actions: parts.actions.length,
     executableActions: parts.actions.filter((action) => action.category === "executable").length,
     confirmationActions: parts.actions.filter((action) => action.requiresConfirmation).length,
@@ -579,11 +875,32 @@ function normalizeOptionalInteger(value, name) {
   return normalizeInteger(value, name, { min: 0 });
 }
 
+function normalizeOptionalBoolean(value, name) {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+  if (typeof value !== "boolean") {
+    throw new TypeError(`${name} must be a boolean.`);
+  }
+  return value;
+}
+
 function cleanOptionalString(value, name) {
   if (value === undefined || value === null) {
     return undefined;
   }
   return cleanRequiredString(value, name);
+}
+
+function normalizeHexColor(value, name) {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+  const text = cleanRequiredString(value, name).toUpperCase();
+  if (!/^#[0-9A-F]{6}$/.test(text)) {
+    throw new Error(`${name} must be a #RRGGBB color.`);
+  }
+  return text;
 }
 
 function cleanRequiredString(value, name) {

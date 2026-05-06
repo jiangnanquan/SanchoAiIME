@@ -8,7 +8,16 @@ import {
   resolveDeepSeekCredential
 } from "./deepseek.js";
 
-const HELP = `Usage:
+const HELP_ZH = `用法：
+  sancho-cloud-teacher deepseek status
+  sancho-cloud-teacher deepseek dry-run --message <text> [--system <text>] [--max-tokens n] [--temperature n] [--budget-input-chars n] [--budget-output-tokens n]
+  sancho-cloud-teacher deepseek chat --message <text> [--system <text>] [--allow-network] [--max-tokens n] [--temperature n] [--budget-input-chars n] [--budget-output-tokens n] [--audit-log path]
+
+凭据只会从 DEEPSEEK_API_KEY 或 macOS Keychain service
+"SanchoAiIME DeepSeek API Key" 读取。CLI 输出不会打印凭据值。
+`;
+
+const HELP_EN = `Usage:
   sancho-cloud-teacher deepseek status
   sancho-cloud-teacher deepseek dry-run --message <text> [--system <text>] [--max-tokens n] [--temperature n] [--budget-input-chars n] [--budget-output-tokens n]
   sancho-cloud-teacher deepseek chat --message <text> [--system <text>] [--allow-network] [--max-tokens n] [--temperature n] [--budget-input-chars n] [--budget-output-tokens n] [--audit-log path]
@@ -19,10 +28,11 @@ Credentials are read only from DEEPSEEK_API_KEY or macOS Keychain service
 
 export async function runCli(argv, runtime = {}) {
   const stdout = runtime.stdout ?? process.stdout;
+  const locale = localeFromEnv(runtime.env);
   const [command, ...rest] = argv;
 
   if (!command || command === "help" || command === "--help" || command === "-h") {
-    stdout.write(HELP);
+    stdout.write(helpText(locale));
     return 0;
   }
 
@@ -30,7 +40,7 @@ export async function runCli(argv, runtime = {}) {
     return await runDeepSeekCommand(rest, { ...runtime, stdout });
   }
 
-  throw new Error(`Unknown command: ${command}\n\n${HELP}`);
+  throw new Error(`Unknown command: ${command}\n\n${helpText(locale)}`);
 }
 
 async function runDeepSeekCommand(args, runtime) {
@@ -82,7 +92,7 @@ async function runDeepSeekCommand(args, runtime) {
     return 0;
   }
 
-  throw new Error(`Unknown deepseek command: ${subcommand}\n\n${HELP}`);
+  throw new Error(`Unknown deepseek command: ${subcommand}\n\n${helpText(localeFromEnv(runtime.env))}`);
 }
 
 function buildChatInput(options) {
@@ -150,4 +160,13 @@ function requireOption(options, name) {
     throw new Error(`Missing required option --${name}`);
   }
   return value;
+}
+
+function localeFromEnv(env = process.env) {
+  const raw = String(env?.SANCHO_LOCALE ?? "zh-CN").replace("_", "-").toLowerCase();
+  return raw.startsWith("en") ? "en-US" : "zh-CN";
+}
+
+function helpText(locale) {
+  return locale === "en-US" ? HELP_EN : HELP_ZH;
 }

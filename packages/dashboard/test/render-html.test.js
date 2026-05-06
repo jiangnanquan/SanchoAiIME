@@ -22,6 +22,16 @@ test("renders escaped static dashboard HTML", () => {
   assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
   assert.doesNotMatch(html, /<td><script>/);
   assert.match(html, /data-tab="actions"/);
+  assert.match(html, /data-tab="input-method"/);
+  assert.match(html, /data-input-method-form/);
+  assert.match(html, /data-save-rime-settings/);
+  assert.match(html, /name="predictorEnabled"/);
+  assert.match(html, /name="predictorRunner"/);
+  assert.match(html, /data-save-custom-phrases/);
+  assert.match(html, /data-custom-phrase-field="candidatePosition"/);
+  assert.match(html, /data-preview-code/);
+  assert.match(html, /class="dashboard-chrome"/);
+  assert.match(html, /用户自定义词|User Custom Phrases/);
 });
 
 test("embeds only redacted safe dashboard JSON", () => {

@@ -13,7 +13,22 @@ import {
   spawnProfile
 } from "./actions.js";
 
-const HELP = `Usage:
+const HELP_ZH = `用法：
+  sancho-quick-dictionary render --entries <entries.json>
+  sancho-quick-dictionary sync --entries <entries.json> [--custom-phrase <path>] [--dry-run]
+  sancho-quick-dictionary actions validate --registry <registry.json>
+  sancho-quick-dictionary actions entries --registry <registry.json>
+  sancho-quick-dictionary profiles describe --registry <registry.json> --profile <profile-id>
+  sancho-quick-dictionary profiles run --registry <registry.json> (--profile <profile-id> | --action <action-id-or-code>) [--dry-run] [-- <extra args>]
+
+entries 文件可以是 JSON 数组，也可以是包含 entries、phrases 或 quickDictionary
+数组的对象。每条记录需要 surface/text/phrase、code/reading，以及可选整数 weight。
+
+action registry 是包含 actions 和可选 profiles 数组的 JSON 对象。profile 环境变量
+只会注入到 Sancho 启动的子进程，不会写入全局 shell 环境。
+`;
+
+const HELP_EN = `Usage:
   sancho-quick-dictionary render --entries <entries.json>
   sancho-quick-dictionary sync --entries <entries.json> [--custom-phrase <path>] [--dry-run]
   sancho-quick-dictionary actions validate --registry <registry.json>
@@ -33,10 +48,11 @@ started by the profiles command.
 export async function runCli(argv, streams = {}) {
   const stdout = streams.stdout ?? process.stdout;
   const stderr = streams.stderr ?? process.stderr;
+  const locale = localeFromEnv(streams.env);
   const [command, ...rest] = argv;
 
   if (!command || command === "help" || command === "--help" || command === "-h") {
-    stdout.write(HELP);
+    stdout.write(helpText(locale));
     return 0;
   }
 
@@ -65,20 +81,22 @@ export async function runCli(argv, streams = {}) {
       return 0;
     }
 
-    const verb = result.changed ? "Updated" : "No changes for";
-    stderr.write(`${verb} ${result.path} (${result.entries.length} entries).\n`);
+    const message = locale === "en-US"
+      ? `${result.changed ? "Updated" : "No changes for"} ${result.path} (${result.entries.length} entries).`
+      : `${result.changed ? "已更新" : "无需更新"} ${result.path}（${result.entries.length} 条）。`;
+    stderr.write(`${message}\n`);
     return 0;
   }
 
   if (command === "actions") {
-    return await runActionsCommand(rest, { stdout });
+    return await runActionsCommand(rest, { stdout, env: streams.env });
   }
 
   if (command === "profiles") {
-    return await runProfilesCommand(rest, { stdout, stderr });
+    return await runProfilesCommand(rest, { stdout, stderr, env: streams.env });
   }
 
-  throw new Error(`Unknown command: ${command}\n\n${HELP}`);
+  throw new Error(`Unknown command: ${command}\n\n${helpText(locale)}`);
 }
 
 async function runActionsCommand(args, streams) {
@@ -88,8 +106,10 @@ async function runActionsCommand(args, streams) {
   const registry = await loadActionRegistryFromJsonFile(registryPath);
 
   if (subcommand === "validate") {
-    streams.stdout.write(
-      `Validated ${registry.actions.length} actions and ${registry.profiles.length} profiles.\n`
+    const locale = localeFromEnv(streams.env);
+    streams.stdout.write(locale === "en-US"
+      ? `Validated ${registry.actions.length} actions and ${registry.profiles.length} profiles.\n`
+      : `已验证 ${registry.actions.length} 个动作和 ${registry.profiles.length} 个环境。\n`
     );
     return 0;
   }
@@ -101,7 +121,7 @@ async function runActionsCommand(args, streams) {
     return 0;
   }
 
-  throw new Error(`Unknown actions command: ${subcommand}\n\n${HELP}`);
+  throw new Error(`Unknown actions command: ${subcommand}\n\n${helpText(localeFromEnv(streams.env))}`);
 }
 
 async function runProfilesCommand(args, streams) {
@@ -136,13 +156,16 @@ async function runProfilesCommand(args, streams) {
     });
 
     if (result.signal) {
-      streams.stderr.write(`Profile process exited from signal ${result.signal}.\n`);
+      streams.stderr.write(localeFromEnv(streams.env) === "en-US"
+        ? `Profile process exited from signal ${result.signal}.\n`
+        : `环境进程因信号 ${result.signal} 退出。\n`
+      );
       return 1;
     }
     return result.code ?? 1;
   }
 
-  throw new Error(`Unknown profiles command: ${subcommand}\n\n${HELP}`);
+  throw new Error(`Unknown profiles command: ${subcommand}\n\n${helpText(localeFromEnv(streams.env))}`);
 }
 
 function selectProfile(registry, options) {
@@ -193,4 +216,15 @@ function requireOption(options, name) {
     throw new Error(`Missing required option --${name}`);
   }
   return value;
+}
+
+function localeFromEnv(env = process.env) {
+  const raw = String(env?.SANCHO_LOCALE ?? "zh-CN")
+    .replace("_", "-")
+    .toLowerCase();
+  return raw.startsWith("en") ? "en-US" : "zh-CN";
+}
+
+function helpText(locale) {
+  return locale === "en-US" ? HELP_EN : HELP_ZH;
 }

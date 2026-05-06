@@ -5,7 +5,8 @@ Static dashboard renderer for SanchoAiIME management surfaces.
 The package turns local Sancho state into a redacted view model and renders one
 HTML file for:
 
-* quick dictionary managed entries
+* user custom phrases and quick dictionary managed entries
+* Rime/Squirrel input method appearance and behavior settings
 * action registry snippets and executable actions
 * profile switch environment preview
 * local model setup and benchmark status
@@ -26,6 +27,13 @@ itself.
 ```sh
 sancho-dashboard render --state packages/dashboard/examples/dashboard-state.example.json --output data/dashboard.html
 sancho-dashboard sample-state --output data/dashboard-state.json
+```
+
+Dashboard 默认渲染为简体中文。需要英文时显式传 locale：
+
+```sh
+sancho-dashboard render --locale en-US --output data/dashboard.html
+SANCHO_LOCALE=en-US sancho-dashboard sample-state --output data/dashboard-state.json
 ```
 
 Generated dashboards derived from real local state may still include personal

@@ -8,8 +8,11 @@ import {
   BEGIN_MARKER,
   END_MARKER,
   normalizeEntries,
+  parseCustomPhraseText,
   renderManagedRegion,
   syncCustomPhraseFile,
+  syncUserCustomPhraseEntries,
+  updateUserEntries,
   updateManagedRegion
 } from "../src/custom-phrase.js";
 
@@ -63,6 +66,62 @@ test("replaces only the existing Sancho managed region", () => {
   );
 });
 
+test("replaces user custom phrases while preserving managed entries", () => {
+  const existing = [
+    "# before",
+    "Old user phrase\toup\t50",
+    BEGIN_MARKER,
+    "Qwen 本地预测\tqwp\t90",
+    END_MARKER,
+    "# after",
+    ""
+  ].join("\n");
+
+  const updated = updateUserEntries(existing, [
+    { surface: "New user phrase", code: "nup", weight: 88 }
+  ]);
+
+  assert.equal(
+    updated,
+    [
+      "New user phrase\tnup\t88",
+      BEGIN_MARKER,
+      "Qwen 本地预测\tqwp\t90",
+      END_MARKER,
+      "# after",
+      ""
+    ].join("\n")
+  );
+});
+
+test("renders and parses optional candidate positions for user phrases", () => {
+  const existing = [
+    BEGIN_MARKER,
+    "Qwen 本地预测\tqwp\t90",
+    END_MARKER,
+    ""
+  ].join("\n");
+
+  const updated = updateUserEntries(existing, [
+    { surface: "固定第二候选", code: "gd", weight: 88, candidatePosition: 2 }
+  ]);
+
+  assert.equal(
+    updated,
+    [
+      "# @sancho candidate_position=2",
+      "固定第二候选\tgd\t88",
+      BEGIN_MARKER,
+      "Qwen 本地预测\tqwp\t90",
+      END_MARKER,
+      ""
+    ].join("\n")
+  );
+
+  const parsed = parseCustomPhraseText(updated);
+  assert.equal(parsed.userEntries[0].candidatePosition, 2);
+});
+
 test("preserves CRLF line endings when replacing a managed region", () => {
   const existing = [
     "# before",
@@ -105,11 +164,11 @@ test("deduplicates entries by surface and code with the last value winning", () 
   assert.deepEqual(
     normalizeEntries([
       { surface: "DuckDB", code: "du", weight: 10 },
-      { text: "DuckDB", reading: "du", weight: 60 },
+      { text: "DuckDB", reading: "du", weight: 60, candidatePosition: 2 },
       { phrase: "Playwright", code: "pl" }
     ]),
     [
-      { surface: "DuckDB", code: "du", weight: 60 },
+      { surface: "DuckDB", code: "du", weight: 60, candidatePosition: 2 },
       { surface: "Playwright", code: "pl", weight: 99 }
     ]
   );
@@ -120,6 +179,24 @@ test("rejects tab or line break content before rendering Rime rows", () => {
     () => renderManagedRegion([{ surface: "bad\tfield", code: "bf" }]),
     /must not contain tabs or line breaks/
   );
+});
+
+test("parses user and managed custom_phrase entries for display", () => {
+  const parsed = parseCustomPhraseText([
+    "# comment",
+    "静夜思\\n\\s\\s李白\tjys\t50",
+    "DuckDB\tdu\t50",
+    BEGIN_MARKER,
+    "Qwen 本地预测\tqwp\t90",
+    END_MARKER,
+    ""
+  ].join("\n"));
+
+  assert.equal(parsed.summary.userEntryCount, 2);
+  assert.equal(parsed.summary.managedEntryCount, 1);
+  assert.equal(parsed.summary.commentRowCount, 1);
+  assert.equal(parsed.userEntries[0].preview, "静夜思\n  李白");
+  assert.equal(parsed.managedEntries[0].code, "qwp");
 });
 
 test("syncCustomPhraseFile writes the managed region atomically", async () => {
@@ -141,6 +218,41 @@ test("syncCustomPhraseFile writes the managed region atomically", async () => {
       [
         "# user",
         "User phrase\tup\t50",
+        BEGIN_MARKER,
+        "Sancho quick dictionary\tsqd\t99",
+        END_MARKER,
+        ""
+      ].join("\n")
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("syncUserCustomPhraseEntries writes editable user phrases atomically", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "sancho-user-phrases-"));
+  const path = join(directory, "custom_phrase.txt");
+
+  try {
+    await writeFile(path, [
+      "Old user\tou\t20",
+      BEGIN_MARKER,
+      "Sancho quick dictionary\tsqd\t99",
+      END_MARKER,
+      ""
+    ].join("\n"), "utf8");
+
+    const result = await syncUserCustomPhraseEntries({
+      customPhrasePath: path,
+      entries: [{ surface: "Control panel edit", code: "cpe", weight: 70 }]
+    });
+
+    const content = await readFile(path, "utf8");
+    assert.equal(result.changed, true);
+    assert.equal(
+      content,
+      [
+        "Control panel edit\tcpe\t70",
         BEGIN_MARKER,
         "Sancho quick dictionary\tsqd\t99",
         END_MARKER,

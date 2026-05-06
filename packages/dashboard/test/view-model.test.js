@@ -21,6 +21,62 @@ test("creates a dashboard model that separates snippets from executable actions"
   assert.equal(model.summary.confirmationActions, 1);
 });
 
+test("includes input method settings in the dashboard model", () => {
+  const model = createDashboardViewModel({
+    inputMethodSettings: {
+      outputScript: "traditional",
+      colorScheme: "sancho_graphite",
+      candidateLayout: "linear",
+      textOrientation: "horizontal",
+      pageSize: 7,
+      inlinePreedit: false
+    }
+  });
+
+  assert.equal(model.navigation.some((item) => item.id === "input-method"), true);
+  assert.equal(model.inputMethodSettings.outputScript, "traditional");
+  assert.equal(model.inputMethodSettings.colorScheme, "sancho_graphite");
+  assert.equal(model.inputMethodSettings.pageSize, 7);
+  assert.equal(model.inputMethodSettings.inlinePreedit, false);
+  assert.equal(model.inputMethodSettings.customSkin.backColor, "#F7FAFC");
+  assert.equal(model.inputMethodSettings.aiSkinAssistant.model, "deepseek-v4-flash");
+  assert.equal(model.inputMethodSettings.predictor.enabled, false);
+  assert.equal(model.inputMethodSettings.predictor.status, "unknown");
+});
+
+test("includes user custom phrases in the dashboard model", () => {
+  const model = createDashboardViewModel({
+    quickDictionary: {
+      customEntries: [
+        {
+          surface: "静夜思\\n\\s\\s李白",
+          preview: "静夜思\n  李白",
+          code: "jys",
+          weight: 50,
+          lineNumber: 2,
+          candidatePosition: 2
+        }
+      ],
+      entries: [
+        { surface: "Qwen 本地预测", code: "qwp", weight: 90 }
+      ],
+      customSummary: {
+        entryCount: 2,
+        userEntryCount: 1,
+        managedEntryCount: 1,
+        invalidRowCount: 0,
+        commentRowCount: 1,
+        blankRowCount: 0
+      }
+    }
+  });
+
+  assert.equal(model.quickDictionary.customEntries[0].preview, "静夜思\n  李白");
+  assert.equal(model.quickDictionary.customEntries[0].candidatePosition, 2);
+  assert.equal(model.quickDictionary.customSummary.userEntryCount, 1);
+  assert.equal(model.summary.quickDictionaryEntries, 2);
+});
+
 test("redacts sensitive profile environment entries", () => {
   assert.equal(isSensitiveEnvEntry("DEEPSEEK_API_KEY", "abc"), true);
   assert.equal(isSensitiveEnvEntry("OPENAI_BASE_URL", "https://api.deepseek.com"), false);
