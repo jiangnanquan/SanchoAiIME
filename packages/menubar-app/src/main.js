@@ -71,6 +71,7 @@ let translator;
 let actionRegistry;
 let modelDownloadPromise;
 let modelProgressWindow;
+let updateProgressWindow;
 let predictorService;
 let autoUpdater;
 let commitLogPath;
@@ -865,18 +866,33 @@ function initAutoUpdater() {
       // Silent — only notify if update is available
     },
     onDownloadProgress: (progress) => {
-      if (tray) {
-        tray.setToolTip(`SanchoAiIME — ${translator.t("downloadingUpdate")} ${progress.percent}%`);
-      }
+      updateUpdateProgress({
+        status: translator.t("downloadingUpdate"),
+        detail: `${progress.percent}%`,
+        percent: progress.percent / 100
+      });
     },
-    onDownloadComplete: (path) => {
-      if (tray) {
-        tray.setToolTip("SanchoAiIME");
+    onDownloadComplete: async (path) => {
+      updateUpdateProgress({
+        status: translator.t("installingUpdate"),
+        detail: "",
+        percent: 1
+      });
+      try {
+        const appBundle = app.getPath("exe").replace(/\/Contents\/MacOS\/.*$/, "");
+        await autoUpdater.installAndRelaunch(path, appBundle);
+        closeUpdateProgress();
+        setTimeout(() => {
+          app.relaunch();
+          app.exit();
+        }, 500);
+      } catch (error) {
+        closeUpdateProgress();
+        await showError(error);
       }
-      void showDownloadCompleteDialog(path);
     },
     onError: () => {
-      // Silent on startup check errors
+      closeUpdateProgress();
     }
   });
 
@@ -934,30 +950,64 @@ async function showUpdateDialog(release) {
   });
 
   if (response === 0) {
+    showUpdateProgress();
     try {
       await autoUpdater.downloadUpdate({ url: release.url });
     } catch (error) {
+      closeUpdateProgress();
       await showError(error);
     }
   }
 }
 
-async function showDownloadCompleteDialog(dmgPath) {
-  const { response } = await dialog.showMessageBox({
-    type: "info",
-    title: translator.t("downloadCompleteTitle"),
-    message: translator.t("downloadCompleteMessage"),
-    detail: dmgPath,
-    buttons: [
-      translator.t("openDmgButton"),
-      translator.t("closeButton")
-    ],
-    defaultId: 0
-  });
-
-  if (response === 0) {
-    await shell.openPath(dmgPath);
+function showUpdateProgress() {
+  if (updateProgressWindow) {
+    updateProgressWindow.show();
+    updateProgressWindow.focus();
+    return;
   }
+  updateProgressWindow = new BrowserWindow({
+    width: 420,
+    height: 178,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    closable: false,
+    title: translator.t("downloadingUpdate"),
+    icon: createIconImage(appIconPath),
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true
+    }
+  });
+  updateProgressWindow.removeMenu();
+  updateProgressWindow.on("closed", () => {
+    updateProgressWindow = undefined;
+  });
+  void updateProgressWindow.loadURL(progressWindowHtml(translator));
+}
+
+function updateUpdateProgress(progress) {
+  if (!updateProgressWindow) return;
+  const percent = Number.isFinite(progress.percent) ? progress.percent : undefined;
+  updateProgressWindow.setProgressBar(percent === undefined ? 2 : percent);
+  const payload = JSON.stringify({
+    status: progress.status,
+    detail: progress.detail ?? "",
+    percent
+  });
+  void updateProgressWindow.webContents.executeJavaScript(
+    `window.setSanchoProgress(${payload})`
+  ).catch(() => {});
+}
+
+function closeUpdateProgress() {
+  if (!updateProgressWindow) return;
+  updateProgressWindow.setProgressBar(-1);
+  updateProgressWindow.destroy();
+  updateProgressWindow = undefined;
 }
 
 async function distillAndShowSuggestions() {

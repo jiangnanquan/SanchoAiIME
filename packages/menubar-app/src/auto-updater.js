@@ -1,5 +1,6 @@
+import { execSync } from "node:child_process";
 import { createWriteStream } from "node:fs";
-import { stat, unlink, rename } from "node:fs/promises";
+import { mkdir, stat, unlink, rename } from "node:fs/promises";
 import { get } from "node:https";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -104,6 +105,18 @@ class AutoUpdater {
       clearInterval(this.checkTimer);
       this.checkTimer = undefined;
     }
+  }
+
+  async installAndRelaunch(dmgPath, appPath) {
+    const mountPoint = join(tmpdir(), `sancho-update-${Date.now()}`);
+    await mkdir(mountPoint, { recursive: true });
+    execSync(`hdiutil attach "${dmgPath}" -nobrowse -readonly -mountpoint "${mountPoint}"`, {
+      timeout: 30000
+    });
+    const sourceApp = join(mountPoint, "SanchoAiIME.app");
+    execSync(`cp -Rf "${sourceApp}" "${appPath}"`, { timeout: 30000 });
+    execSync(`hdiutil detach "${mountPoint}"`, { timeout: 10000 });
+    return appPath;
   }
 }
 
