@@ -117,6 +117,7 @@ export const DEFAULT_RIME_SETTINGS = Object.freeze({
   fontPoint: 16,
   cornerRadius: 7,
   inlinePreedit: true,
+  englishPunctuation: false,
   customSkin: DEFAULT_CUSTOM_SKIN,
   predictor: {
     enabled: true,
@@ -199,6 +200,8 @@ export async function readRimeSettings(options = {}) {
       ?? DEFAULT_RIME_SETTINGS.cornerRadius,
     inlinePreedit: squirrelPatch.get(SQUIRREL_PATCH_KEYS.inlinePreedit)
       ?? DEFAULT_RIME_SETTINGS.inlinePreedit,
+    englishPunctuation: lunaPatch.get("punctuator/half_shape")
+      ?? DEFAULT_RIME_SETTINGS.englishPunctuation,
     customSkin: readSkinFromPatch(squirrelPatch, CUSTOM_SKIN_ID),
     predictor
   });
@@ -226,7 +229,8 @@ export async function writeRimeSettings(input, options = {}) {
     [DEFAULT_PATCH_KEYS.pageSize]: settings.pageSize
   });
   await updatePatchFile(paths.lunaPinyin, {
-    [LUNA_PINYIN_PATCH_KEYS.simplificationReset]: settings.outputScript === "simplified" ? 1 : 0
+    [LUNA_PINYIN_PATCH_KEYS.simplificationReset]: settings.outputScript === "simplified" ? 1 : 0,
+    "punctuator/half_shape": settings.englishPunctuation
   });
   const predictorResult = await writeRimePredictorIntegration(settings.predictor, {
     rimeDirectory
@@ -256,6 +260,7 @@ export function normalizeRimeSettings(input) {
     fontPoint: integerRange(raw.fontPoint, RIME_SETTING_OPTIONS.fontPoint, "fontPoint"),
     cornerRadius: integerRange(raw.cornerRadius, RIME_SETTING_OPTIONS.cornerRadius, "cornerRadius"),
     inlinePreedit: booleanValue(raw.inlinePreedit, "inlinePreedit"),
+    englishPunctuation: booleanValue(raw.englishPunctuation, "englishPunctuation"),
     customSkin: normalizeSkin(raw.customSkin ?? DEFAULT_CUSTOM_SKIN),
     predictor: normalizePredictorSettingBlock(raw.predictor ?? DEFAULT_RIME_SETTINGS.predictor)
   };

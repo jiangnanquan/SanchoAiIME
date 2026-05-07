@@ -1,5 +1,7 @@
 import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { parseCustomPhraseText } from "@sancho-ai-ime/quick-dictionary";
 
@@ -9,6 +11,9 @@ import {
   createAsyncPredictionRunner,
   normalizeRunnerPrediction
 } from "./predictor-runner.js";
+
+const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
+const DEFAULT_EN_WORD_LIST_PATH = resolve(MODULE_DIR, "en-word-list.json");
 
 export const DEFAULT_PREDICTOR_HOST = "127.0.0.1";
 export const DEFAULT_PREDICTOR_PORT = 18840;
@@ -47,6 +52,17 @@ export async function predictForRime(input = {}, options = {}) {
     limit: settings.candidateLimit
   });
 
+  const enLexicon = await readEnglishLexicon({
+    enWordListPath: options.enWordListPath ?? DEFAULT_EN_WORD_LIST_PATH,
+    cache: options.enLexiconCache
+  });
+  const enPrediction = buildEnglishPrediction({
+    code,
+    candidates,
+    enLexicon,
+    limit: Math.min(3, settings.candidateLimit)
+  });
+
   const external = normalizeRunnerPrediction(options.runnerPrediction)
     ?? await maybeReadExternalPrediction({
       code,
@@ -57,7 +73,7 @@ export async function predictForRime(input = {}, options = {}) {
       timeoutMs: settings.timeoutMs
     });
 
-  return mergePredictions(local, external, {
+  return mergePredictions(local, external, enPrediction, {
     mode: external ? "external-runner+lexicon" : "lexicon",
     code,
     model: options.model
@@ -133,6 +149,7 @@ class LocalPredictorService {
       fetchImpl: this.fetchImpl ?? runnerOptions.fetchImpl
     });
     this.lexiconCache = {};
+    this.enLexiconCache = {};
     this.server = undefined;
     this.lastError = undefined;
     this.startedAt = undefined;
@@ -201,6 +218,7 @@ class LocalPredictorService {
       settings: this.settings,
       customPhrasePath: this.customPhrasePath,
       lexiconCache: this.lexiconCache,
+      enLexiconCache: this.enLexiconCache,
       runnerPrediction
     });
     if (!["disabled", "code-too-short"].includes(prediction.mode)) {
@@ -281,6 +299,82 @@ async function readCustomPhraseLexicon(options = {}) {
     cache[cacheKey] = { mtimeMs, lexicon };
   }
   return lexicon;
+}
+
+async function readEnglishLexicon(options = {}) {
+  const path = options.enWordListPath;
+  const cache = options.cache;
+  const fileStat = await stat(path).catch((error) => {
+    if (error.code === "ENOENT") {
+      return undefined;
+    }
+    throw error;
+  });
+  const cacheKey = path;
+  const mtimeMs = fileStat?.mtimeMs ?? 0;
+  if (cache?.[cacheKey]?.mtimeMs === mtimeMs) {
+    return cache[cacheKey].lexicon;
+  }
+
+  const words = fileStat
+    ? JSON.parse(await readFile(path, "utf8")).words ?? []
+    : [];
+  const byPrefix = new Map();
+  for (const word of words) {
+    const key = word.slice(0, 1);
+    let bucket = byPrefix.get(key);
+    if (!bucket) {
+      bucket = [];
+      byPrefix.set(key, bucket);
+    }
+    bucket.push(word);
+  }
+  const lexicon = { byPrefix, wordCount: words.length };
+  if (cache) {
+    cache[cacheKey] = { mtimeMs, lexicon };
+  }
+  return lexicon;
+}
+
+function buildEnglishPrediction(input) {
+  const code = input.code;
+  if (!code || code.length < 3) {
+    return { suggestions: [] };
+  }
+  const byPrefix = input.enLexicon?.byPrefix;
+  if (!byPrefix) {
+    return { suggestions: [] };
+  }
+
+  const bucket = byPrefix.get(code.slice(0, 1));
+  if (!bucket) {
+    return { suggestions: [] };
+  }
+
+  const existingTexts = new Set(input.candidates.map((candidate) => candidate.text.toLowerCase()));
+  const scored = [];
+  for (const word of bucket) {
+    if (!word.startsWith(code)) {
+      continue;
+    }
+    if (existingTexts.has(word)) {
+      continue;
+    }
+    const score = 100000 + word.length - (word.length - code.length) * 50;
+    scored.push({ text: word, score, comment: "EN" });
+  }
+  scored.sort((a, b) => b.score - a.score);
+
+  const suggestions = [];
+  const limit = input.limit ?? 3;
+  for (const item of scored) {
+    if (suggestions.length >= limit) {
+      break;
+    }
+    suggestions.push(item);
+  }
+
+  return { suggestions };
 }
 
 function buildLocalPrediction(input) {
@@ -448,7 +542,7 @@ function normalizeAiComment(value, fallback) {
   return text.includes("AI") ? text : `${fallback} ${text}`;
 }
 
-function mergePredictions(local, external, options) {
+function mergePredictions(local, external, enPrediction, options) {
   const rankByText = new Map();
   for (const row of local.rank) {
     rankByText.set(row.text, row);
@@ -465,7 +559,7 @@ function mergePredictions(local, external, options) {
 
   const suggestions = [];
   const seenSuggestions = new Set();
-  for (const row of [...(external?.suggestions ?? []), ...local.suggestions]) {
+  for (const row of [...(external?.suggestions ?? []), ...(enPrediction?.suggestions ?? []), ...local.suggestions]) {
     if (seenSuggestions.has(row.text)) {
       continue;
     }
@@ -479,13 +573,16 @@ function mergePredictions(local, external, options) {
   }
 
   return {
-    mode: options.mode,
+    mode: enPrediction?.suggestions?.length
+      ? `${options.mode}+en`
+      : options.mode,
     code: options.code,
     rank: Array.from(rankByText.values()).sort((a, b) => b.score - a.score),
     suggestions: suggestions.slice(0, 3),
     diagnostics: {
       ...(local.diagnostics ?? {}),
       external: Boolean(external),
+      enWordsAvailable: enPrediction?.suggestions?.length > 0,
       modelStatus: options.model?.status
     }
   };

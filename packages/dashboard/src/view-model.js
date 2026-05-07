@@ -631,6 +631,10 @@ function normalizeInputMethodSettings(input) {
       raw.inlinePreedit ?? raw.inline_preedit,
       "Input method inline preedit"
     ),
+    englishPunctuation: normalizeOptionalBoolean(
+      raw.englishPunctuation ?? raw.english_punctuation,
+      "Input method englishPunctuation"
+    ),
     customSkin: normalizeInputMethodSkin(raw.customSkin ?? raw.custom_skin),
     customSkinName: cleanOptionalString(
       raw.customSkinName ?? raw.custom_skin_name,

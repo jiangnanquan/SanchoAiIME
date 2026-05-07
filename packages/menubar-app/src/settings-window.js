@@ -37,6 +37,7 @@ export function renderRimeSettingsHtml(translator) {
     horizontal: t("rimeSettingsHorizontal"),
     vertical: t("rimeSettingsVertical"),
     inlinePreedit: t("rimeSettingsInlinePreedit"),
+    englishPunctuation: t("rimeSettingsEnglishPunctuation"),
     behaviorTitle: t("rimeSettingsBehaviorTitle"),
     pageSize: t("rimeSettingsPageSize"),
     fontPoint: t("rimeSettingsFontPoint"),
@@ -614,6 +615,10 @@ export function renderRimeSettingsHtml(translator) {
           <label for="inlinePreedit">${escapeHtml(labels.inlinePreedit)}</label>
           <input id="inlinePreedit" name="inlinePreedit" type="checkbox">
         </div>
+        <div class="row">
+          <label for="englishPunctuation">${escapeHtml(labels.englishPunctuation)}</label>
+          <input id="englishPunctuation" name="englishPunctuation" type="checkbox">
+        </div>
       </section>
 
       <div class="actions">
@@ -633,6 +638,7 @@ export function renderRimeSettingsHtml(translator) {
     const customSkinName = document.getElementById("customSkinName");
     const pageSize = document.getElementById("pageSize");
     const inlinePreedit = document.getElementById("inlinePreedit");
+    const englishPunctuation = document.getElementById("englishPunctuation");
     const fontPoint = document.getElementById("fontPoint");
     const fontPointValue = document.getElementById("fontPointValue");
     const cornerRadius = document.getElementById("cornerRadius");
@@ -719,6 +725,7 @@ export function renderRimeSettingsHtml(translator) {
       fontPoint.value = settings.fontPoint;
       cornerRadius.value = settings.cornerRadius;
       inlinePreedit.checked = settings.inlinePreedit;
+      englishPunctuation.checked = settings.englishPunctuation === true;
       setSkinInputs(skinForScheme(settings.colorScheme, settings.customSkin));
       syncRangeOutputs();
     }
@@ -737,6 +744,7 @@ export function renderRimeSettingsHtml(translator) {
         fontPoint: Number(fontPoint.value),
         cornerRadius: Number(cornerRadius.value),
         inlinePreedit: inlinePreedit.checked,
+        englishPunctuation: englishPunctuation.checked,
         customSkin: getSkinInputs()
       };
     }

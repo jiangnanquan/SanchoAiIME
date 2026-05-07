@@ -277,6 +277,7 @@ function renderInputMethod(settings = {}, t) {
           ], outputScript))}
           ${fieldRow(t("inputMethod.pageSize"), rangeInput("pageSize", pageSize, 3, 9))}
           ${fieldRow(t("inputMethod.inlinePreedit"), `<input id="im-inline-preedit" name="inlinePreedit" type="checkbox"${settings.inlinePreedit === false ? "" : " checked"}>`)}
+          ${fieldRow(t("inputMethod.englishPunctuation"), `<input id="im-english-punctuation" name="englishPunctuation" type="checkbox"${settings.englishPunctuation ? " checked" : ""}>`)}
           ${fieldRow(t("inputMethod.predictorEnabled"), `<input id="im-predictor-enabled" name="predictorEnabled" type="checkbox"${predictor.enabled === false ? "" : " checked"}>`)}
           <div class="predictor-status">
             <span>${escapeHtml(t("inputMethod.predictorStatus"))}</span>
@@ -1756,6 +1757,7 @@ function getInputMethodSettings(form) {
     fontPoint: Number(form.querySelector("[name='fontPoint']").value),
     cornerRadius: Number(form.querySelector("[name='cornerRadius']").value),
     inlinePreedit: form.querySelector("[name='inlinePreedit']").checked,
+    englishPunctuation: form.querySelector("[name='englishPunctuation']")?.checked ?? false,
     predictor: {
       enabled: form.querySelector("[name='predictorEnabled']")?.checked !== false,
       runner: {
@@ -1777,6 +1779,10 @@ function applyInputMethodSettings(form, settings) {
   form.querySelector("[name='fontPoint']").value = settings.fontPoint;
   form.querySelector("[name='cornerRadius']").value = settings.cornerRadius;
   form.querySelector("[name='inlinePreedit']").checked = Boolean(settings.inlinePreedit);
+  const englishPunctuationEl = form.querySelector("[name='englishPunctuation']");
+  if (englishPunctuationEl) {
+    englishPunctuationEl.checked = Boolean(settings.englishPunctuation);
+  }
   const predictorEnabled = form.querySelector("[name='predictorEnabled']");
   if (predictorEnabled) {
     predictorEnabled.checked = settings.predictor?.enabled !== false;
