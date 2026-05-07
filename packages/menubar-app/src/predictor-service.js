@@ -89,11 +89,13 @@ export async function predictForRime(input = {}, options = {}) {
     chineseContext
   });
 
+  const commits = cleanText(input.commits ?? "");
+
   const external = normalizeRunnerPrediction(options.runnerPrediction)
     ?? await maybeReadExternalPrediction({
       code,
       candidates,
-      context: input.context,
+      context: commits || input.context,
       endpoint: options.externalEndpoint,
       fetchImpl: options.fetchImpl,
       timeoutMs: settings.timeoutMs
@@ -268,7 +270,8 @@ class LocalPredictorService {
         const prediction = await this.predict({
           code: url.searchParams.get("code"),
           candidates: url.searchParams.get("candidates"),
-          context: url.searchParams.get("context")
+          context: url.searchParams.get("context"),
+          commits: url.searchParams.get("commits")
         });
         writeText(response, 200, renderPredictionTsv(prediction));
         return;

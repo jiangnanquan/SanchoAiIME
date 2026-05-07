@@ -237,20 +237,23 @@ function runnerRequest(input = {}) {
   return {
     code: cleanCode(input.code),
     candidates: normalizeCandidateTexts(input.candidates).slice(0, 12),
-    context: cleanText(input.context)
+    context: cleanText(input.context ?? input.commits ?? ""),
+    commits: cleanText(input.commits ?? "").slice(-200)
   };
 }
 
 function buildOllamaPrompt(request) {
+  const commits = request.commits || request.context || "";
   return [
     "你是中文输入法候选重排器。只输出 JSON，不要解释。",
-    "根据拼音编码、候选列表和上下文，返回最可能的候选重排和最多 2 个短语预测。",
+    "根据拼音编码、最近输入历史和候选列表，返回最可能的候选重排和最多 2 个短语预测。",
     "rank 只能使用候选列表里真实存在的文字；suggestions 可以为空。",
+    "suggestions 可以根据最近输入预测下一个词或短语。",
     "必须尊重拼音读音；不确定时保持候选原顺序，不要把发音不匹配的候选提前。",
-    "不要输出“候选”“预测”等占位词。",
+    "不要输出 候选 预测 等占位词。",
     "JSON 结构：{\"rank\":[{\"text\":\"真实候选\",\"score\":120}],\"suggestions\":[{\"text\":\"真实预测\",\"score\":100,\"comment\":\"AI\"}]}",
     `拼音编码：${request.code}`,
-    `上下文：${request.context || ""}`,
+    `最近输入：${commits}`,
     `候选：${request.candidates.join(" | ")}`
   ].join("\n");
 }
@@ -349,7 +352,8 @@ function predictionKey(input = {}) {
   if (!code) {
     return "";
   }
-  return `${code}\n${normalizeCandidateTexts(input.candidates).join("\n")}\n${cleanText(input.context)}`;
+  const commits = cleanText(input.commits ?? input.context ?? "").slice(-100);
+  return `${code}\n${normalizeCandidateTexts(input.candidates).join("\n")}\n${commits}`;
 }
 
 function normalizeCandidateTexts(value) {

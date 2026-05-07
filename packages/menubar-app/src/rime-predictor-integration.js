@@ -133,6 +133,19 @@ local sancho_min_code_length = ${settings.minCodeLength}
 local sancho_cache = {}
 local sancho_cache_keys = {}
 local sancho_cache_limit = 200
+local sancho_recent_commits = ""
+
+local function accumulate_commits(env)
+  local ok, text = pcall(function()
+    return env.engine.context:get_commit_text()
+  end)
+  if ok and text and #text > 0 then
+    sancho_recent_commits = sancho_recent_commits .. text
+    if #sancho_recent_commits > 300 then
+      sancho_recent_commits = sancho_recent_commits:sub(-300)
+    end
+  end
+end
 
 local function shell_quote(value)
   local text = tostring(value or "")
@@ -228,7 +241,8 @@ local function request_prediction(code, candidates)
 
   local url = "http://" .. sancho_host .. ":" .. sancho_port ..
     "/v1/predict.tsv?code=" .. url_encode(code) ..
-    "&candidates=" .. url_encode(candidate_payload)
+    "&candidates=" .. url_encode(candidate_payload) ..
+    "&commits=" .. url_encode(sancho_recent_commits)
   local command = "/usr/bin/curl -fsS --max-time " .. sancho_timeout_seconds .. " " .. shell_quote(url)
   local handle = io.popen(command)
   if not handle then
@@ -253,6 +267,7 @@ local function sancho_predictor_filter(input, env)
   end
 
   local code = get_context_input(env)
+  accumulate_commits(env)
   if #code < sancho_min_code_length then
     for cand in input:iter() do
       yield(cand)
