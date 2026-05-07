@@ -36,3 +36,4 @@ venv/
 
 .idea/
 .vscode/
+.claude/

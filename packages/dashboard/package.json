@@ -1,6 +1,6 @@
 {
   "name": "@sancho-ai-ime/dashboard",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Static dashboard view model and renderer for SanchoAiIME management surfaces.",
   "type": "module",
   "license": "Apache-2.0",
