@@ -75,10 +75,25 @@ export function buildQuickDictionaryEntries(suggestions) {
 }
 
 async function readRecentLog(logPath) {
+  const MIN_COUNT = 3;
   try {
     const content = await readFile(logPath, "utf8");
-    if (content.length <= MAX_LOG_CHARS) return content;
-    return content.slice(-MAX_LOG_CHARS);
+    const tail = content.length <= MAX_LOG_CHARS
+      ? content
+      : content.slice(-MAX_LOG_CHARS);
+    const lines = tail.split("\n").filter((line) => line.trim());
+    const counts = new Map();
+    for (const line of lines) {
+      const text = line.split("\t").slice(1).join("\t").trim();
+      if (!text) continue;
+      counts.set(text, (counts.get(text) ?? 0) + 1);
+    }
+    const filtered = Array.from(counts.entries())
+      .filter(([, count]) => count >= MIN_COUNT)
+      .sort((a, b) => b[1] - a[1])
+      .map(([text, count]) => `${count}x\t${text}`)
+      .join("\n");
+    return filtered;
   } catch {
     return "";
   }
@@ -86,25 +101,28 @@ async function readRecentLog(logPath) {
 
 function buildDistillationSystem() {
   return [
-    "你是中文输入法个人词库优化器。分析用户最近的打字内容，推断用户的高频词汇、",
-    "专业术语和个人短语习惯。只输出 JSON，不要解释。",
+    "你是中文输入法个人词库优化器。只输出 JSON，不要解释。",
     "",
-    "规则：",
-    "1. 每个建议必须包含 phrase(短语), code(拼音编码), weight(1-999), reason(理由)",
+    "输入格式：每行是 \"频次x\\t短语\"，频次是用户打这个短语的次数（至少 3 次）。",
+    "已过滤了误触和低频输入，你看到的都是用户真正常用的内容。",
+    "",
+    "输出规则：",
+    "1. phrase(短语), code(拼音编码), weight(1-999), reason(理由) 缺一不可",
     "2. code 必须是小写拼音，不带声调，词语间不加空格",
-    "3. 优先建议：重复出现 2 次以上的短语、明显是专业术语的词、用户自创的简称",
+    "3. 频次高（≥10次）、明显是专业术语或个人惯用语的，weight 建议 95+",
     "4. 不要建议：单字、语助词、已在常见词库中的日常用语",
-    "5. 最多输出 8 条建议"
+    "5. 如果发现两个短语的拼音编码相同或相似，建议合并为一条，在 reason 里说明",
+    "6. 最多输出 8 条"
   ].join("\n");
 }
 
 function buildDistillationPrompt(logContent) {
   return [
-    "以下用户最近的中文打字记录（制表符分隔：时间戳\t内容）：",
+    "以下用户的打字习惯（格式：频次x\\t短语）：",
     "",
     logContent,
     "",
-    "请分析后输出 JSON：",
+    "输出 JSON：",
     '{"suggestions":[{"phrase":"短语","code":"pinyin","weight":90,"reason":"理由"}]}'
   ].join("\n");
 }

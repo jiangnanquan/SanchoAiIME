@@ -8,5 +8,6 @@ contextBridge.exposeInMainWorld("sanchoDashboard", {
   suggestSkin: (input) => ipcRenderer.invoke("rime-settings:suggest-skin", input),
   deepSeekStatus: () => ipcRenderer.invoke("deepseek-credentials:status"),
   saveDeepSeekKey: (apiKey) => ipcRenderer.invoke("deepseek-credentials:save", { apiKey }),
-  deleteDeepSeekKey: () => ipcRenderer.invoke("deepseek-credentials:delete")
+  deleteDeepSeekKey: () => ipcRenderer.invoke("deepseek-credentials:delete"),
+  executeAction: (action) => ipcRenderer.invoke("dashboard:action:execute", action)
 });

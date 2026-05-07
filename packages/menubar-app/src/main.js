@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -597,6 +598,56 @@ function registerRimeSettingsIpc() {
       currentSettings: input?.currentSettings
     });
   });
+
+  ipcMain.handle("dashboard:action:execute", async (_event, action) => {
+    return await executeDashboardAction(action);
+  });
+}
+
+async function executeDashboardAction(action) {
+  if (!action || typeof action !== "object") {
+    throw new Error("Invalid action");
+  }
+  const kind = action.kind ?? "";
+  if (!["profile_switch", "run_command"].includes(kind)) {
+    return { ok: false, reason: `Action kind '${kind}' is not executable` };
+  }
+
+  let profile;
+  if (action.profile && actionRegistry?.profiles) {
+    profile = actionRegistry.profiles.find((p) => p.id === action.profile);
+  }
+  if (!profile) {
+    throw new Error(`Profile '${action.profile}' not found`);
+  }
+
+  const command = profile.command;
+  if (!command) {
+    throw new Error(`Profile '${profile.id}' has no command`);
+  }
+
+  const env = { ...process.env };
+  if (profile.inheritEnv !== false) {
+    Object.assign(env, process.env);
+  }
+  if (profile.env) {
+    Object.assign(env, profile.env);
+  }
+
+  const child = spawn(command, profile.args ?? [], {
+    cwd: profile.cwd ?? process.cwd(),
+    env,
+    detached: true,
+    stdio: "ignore"
+  });
+  child.unref();
+
+  return {
+    ok: true,
+    profile: profile.id,
+    command,
+    pid: child.pid
+  };
 }
 
 function dataHtmlUrl(html) {

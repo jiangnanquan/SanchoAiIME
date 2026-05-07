@@ -1446,6 +1446,12 @@ function dispatchDashboardAction(action) {
   }));
 }
 
+window.addEventListener("sancho-dashboard-action-confirmed", (event) => {
+  if (window.sanchoDashboard && typeof window.sanchoDashboard.executeAction === "function") {
+    void window.sanchoDashboard.executeAction(event.detail).catch(() => {});
+  }
+});
+
 document.querySelectorAll("[data-tab]").forEach((button) => {
   button.addEventListener("click", () => {
     selectDashboardTab(button.dataset.tab);
