@@ -677,17 +677,12 @@ function buildDateTimePrediction(code) {
   const s = String(now.getSeconds()).padStart(2, "0");
   const triggers = {
     rq: { text: `${Y}${M}${D}`, comment: "日期" },
-    rq2: { text: `${Y}-${M}-${D}`, comment: "日期" },
-    dt: { text: `${Y}${M}${D} ${h}:${mi}:${s}`, comment: "日期时间" },
-    dt2: { text: `${Y}-${M}-${D} ${h}:${mi}:${s}`, comment: "日期时间" },
-    sj: { text: `${h}:${mi}:${s}`, comment: "时间" }
+    dt: { text: `${Y}${M}${D} ${h}:${mi}:${s}`, comment: "日期时间" }
   };
   const suggestions = [];
   for (const [triggerCode, entry] of Object.entries(triggers)) {
-    if (triggerCode === code) {
+    if (code === triggerCode) {
       suggestions.push({ text: entry.text, score: 200000, comment: entry.comment, code: triggerCode });
-    } else if (triggerCode.startsWith(code)) {
-      suggestions.push({ text: triggerCode, score: 120000, comment: `输入 ${triggerCode} 得 ${entry.comment}`, code: triggerCode });
     }
   }
   return { suggestions };
