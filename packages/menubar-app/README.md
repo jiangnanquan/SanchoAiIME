@@ -12,7 +12,7 @@ Build local macOS package artifacts:
 
 ```sh
 npm run menubar:package:mac
-open dist/menubar-app/SanchoAiIME-arm64.dmg
+open dist/menubar-app/SanchoAiIME-arm64-v*.dmg
 ```
 
 Open the DMG, then drag the left-side `SanchoAiIME.app` onto the right-side

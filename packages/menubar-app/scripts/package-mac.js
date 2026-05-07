@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import {
   access,
@@ -15,6 +16,7 @@ import { fileURLToPath } from "node:url";
 const packageDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const workspaceRoot = resolve(packageDir, "../..");
 const productName = "SanchoAiIME";
+const version = JSON.parse(readFileSync(join(packageDir, "package.json"), "utf8")).version;
 const archOutput = process.arch === "arm64" ? "mac-arm64" : "mac";
 const archLabel = process.arch === "arm64" ? "arm64" : "x64";
 const appPath = join(
@@ -25,8 +27,8 @@ const appPath = join(
   `${productName}.app`
 );
 const artifactDirectory = join(workspaceRoot, "dist", "menubar-app");
-const dmgPath = join(artifactDirectory, `${productName}-${archLabel}.dmg`);
-const zipPath = join(artifactDirectory, `${productName}-${archLabel}.zip`);
+const dmgPath = join(artifactDirectory, `${productName}-${archLabel}-v${version}.dmg`);
+const zipPath = join(artifactDirectory, `${productName}-${archLabel}-v${version}.zip`);
 
 if (process.platform !== "darwin") {
   throw new Error("macOS package artifacts can only be created on macOS.");

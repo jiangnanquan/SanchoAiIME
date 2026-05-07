@@ -55,14 +55,14 @@ npm test                         # 101 tests
 npm run release:check            # release gate
 npm run release:sbom             # SBOM generation
 npm run menubar:package:mac      # DMG packaging
-open dist/menubar-app/SanchoAiIME-arm64.dmg
+open dist/menubar-app/SanchoAiIME-arm64-v*.dmg
 ```
 
 产物 / Artifacts：
 
 ```text
 dist/menubar-app/mac-arm64/SanchoAiIME.app
-dist/menubar-app/SanchoAiIME-arm64.dmg    (124MB)
+dist/menubar-app/SanchoAiIME-arm64-v*.dmg    (124MB)
 ```
 
 ## 包含的包 / Packages

@@ -30,7 +30,7 @@ npm run menubar:package:mac
 产物：
 
 ```text
-dist/menubar-app/SanchoAiIME-arm64.dmg
+dist/menubar-app/SanchoAiIME-arm64-v*.dmg
 ```
 
 ## 5. 提交并打 tag
@@ -50,7 +50,7 @@ git push origin vNEW.VER.SION
 gh release create vNEW.VER.SION \
   --title "SanchoAiIME vNEW.VER.SION" \
   --notes "发版说明..." \
-  dist/menubar-app/SanchoAiIME-arm64.dmg
+  dist/menubar-app/SanchoAiIME-arm64-v*.dmg
 ```
 
 只上传 DMG，不上传 ZIP。
