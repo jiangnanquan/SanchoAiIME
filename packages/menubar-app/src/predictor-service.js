@@ -108,6 +108,8 @@ export async function predictForRime(input = {}, options = {}) {
   const commits = cleanText(input.commits ?? "");
   logCommits(commits, options.commitLogPath);
 
+  const dateTimePrediction = buildDateTimePrediction(code);
+
   const external = normalizeRunnerPrediction(options.runnerPrediction)
     ?? await maybeReadExternalPrediction({
       code,
@@ -118,7 +120,7 @@ export async function predictForRime(input = {}, options = {}) {
       timeoutMs: settings.timeoutMs
     });
 
-  return mergePredictions(local, external, enPrediction, {
+  return mergePredictions(local, external, enPrediction, dateTimePrediction, {
     mode: external ? "external-runner+lexicon" : "lexicon",
     code,
     model: options.model
@@ -664,7 +666,34 @@ function normalizeAiComment(value, fallback) {
   return text.includes("AI") ? text : `${fallback} ${text}`;
 }
 
-function mergePredictions(local, external, enPrediction, options) {
+function buildDateTimePrediction(code) {
+  if (!code) return { suggestions: [] };
+  const now = new Date();
+  const Y = String(now.getFullYear());
+  const M = String(now.getMonth() + 1).padStart(2, "0");
+  const D = String(now.getDate()).padStart(2, "0");
+  const h = String(now.getHours()).padStart(2, "0");
+  const mi = String(now.getMinutes()).padStart(2, "0");
+  const s = String(now.getSeconds()).padStart(2, "0");
+  const triggers = {
+    rq: { text: `${Y}${M}${D}`, comment: "日期" },
+    rq2: { text: `${Y}-${M}-${D}`, comment: "日期" },
+    dt: { text: `${Y}${M}${D} ${h}:${mi}:${s}`, comment: "日期时间" },
+    dt2: { text: `${Y}-${M}-${D} ${h}:${mi}:${s}`, comment: "日期时间" },
+    sj: { text: `${h}:${mi}:${s}`, comment: "时间" }
+  };
+  const suggestions = [];
+  for (const [triggerCode, entry] of Object.entries(triggers)) {
+    if (triggerCode === code) {
+      suggestions.push({ text: entry.text, score: 200000, comment: entry.comment, code: triggerCode });
+    } else if (triggerCode.startsWith(code)) {
+      suggestions.push({ text: triggerCode, score: 120000, comment: `输入 ${triggerCode} 得 ${entry.comment}`, code: triggerCode });
+    }
+  }
+  return { suggestions };
+}
+
+function mergePredictions(local, external, enPrediction, dateTimePrediction, options) {
   const rankByText = new Map();
   for (const row of local.rank) {
     rankByText.set(row.text, row);
@@ -681,7 +710,7 @@ function mergePredictions(local, external, enPrediction, options) {
 
   const suggestions = [];
   const seenSuggestions = new Set();
-  for (const row of [...(external?.suggestions ?? []), ...(enPrediction?.suggestions ?? []), ...local.suggestions]) {
+  for (const row of [...(external?.suggestions ?? []), ...(enPrediction?.suggestions ?? []), ...(dateTimePrediction?.suggestions ?? []), ...local.suggestions]) {
     if (seenSuggestions.has(row.text)) {
       continue;
     }
