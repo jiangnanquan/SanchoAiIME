@@ -180,7 +180,7 @@ export function renderRimeSettingsHtml(translator) {
       display: block;
       width: 100%;
       max-width: 880px;
-      padding: 26px 32px 32px;
+      padding: 26px 32px 64px;
     }
 
     section {
@@ -468,7 +468,14 @@ export function renderRimeSettingsHtml(translator) {
       display: flex;
       gap: 10px;
       align-items: center;
-      padding-top: 18px;
+      padding: 14px 32px;
+      background: var(--panel);
+      border-top: 1px solid var(--line);
+      position: sticky;
+      bottom: 0;
+      z-index: 10;
+      box-shadow: 0 -4px 16px rgba(0,0,0,0.06);
+      margin: 0 -32px;
     }
 
     button {
@@ -635,16 +642,16 @@ export function renderRimeSettingsHtml(translator) {
           <input id="pageSize" name="pageSize" type="number" min="3" max="9" step="1">
         </div>
         <div class="row">
-          <label for="inlinePreedit">${escapeHtml(labels.inlinePreedit)}</label>
-          <input id="inlinePreedit" name="inlinePreedit" type="checkbox">
+          <label for="mixedInput">${escapeHtml(labels.mixedInput)}</label>
+          <input id="mixedInput" name="mixedInput" type="checkbox" checked>
         </div>
         <div class="row">
           <label for="englishPunctuation">${escapeHtml(labels.englishPunctuation)}</label>
           <input id="englishPunctuation" name="englishPunctuation" type="checkbox">
         </div>
         <div class="row">
-          <label for="mixedInput">${escapeHtml(labels.mixedInput)}</label>
-          <input id="mixedInput" name="mixedInput" type="checkbox" checked>
+          <label for="inlinePreedit">${escapeHtml(labels.inlinePreedit)}</label>
+          <input id="inlinePreedit" name="inlinePreedit" type="checkbox">
         </div>
       </section>
 
