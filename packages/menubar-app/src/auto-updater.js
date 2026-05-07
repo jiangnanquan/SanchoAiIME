@@ -8,6 +8,8 @@ import { pipeline } from "node:stream/promises";
 const GITHUB_API_HOST = "api.github.com";
 const REPO_PATH = "/repos/jiangnanquan/SanchoAiIME/releases/latest";
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const MIRROR_PROXY = "https://ghproxy.com/";
+const REQUEST_TIMEOUT_MS = 10000;
 
 export function createAutoUpdater(options = {}) {
   return new AutoUpdater(options);
@@ -132,89 +134,113 @@ function compareVersions(a, b) {
 }
 
 async function fetchLatestRelease() {
-  return await new Promise((resolve, reject) => {
-    const req = get(
-      {
-        hostname: GITHUB_API_HOST,
-        path: REPO_PATH,
-        headers: {
-          "Accept": "application/vnd.github+json",
-          "User-Agent": "SanchoAiIME-auto-updater",
-          "X-GitHub-Api-Version": "2022-11-28"
-        }
-      },
-      (res) => {
-        if (res.statusCode === 304 || res.statusCode === 404) {
-          resolve(null);
-          return;
-        }
-        if (res.statusCode !== 200) {
-          resolve(null);
-          return;
-        }
-        const chunks = [];
-        res.on("data", (chunk) => chunks.push(chunk));
-        res.on("end", () => {
-          try {
-            resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
-          } catch {
-            resolve(null);
+  const apiUrl = `https://${GITHUB_API_HOST}${REPO_PATH}`;
+  const result = await fetchJson(apiUrl);
+  if (result) {
+    return result;
+  }
+  return await fetchJson(`${MIRROR_PROXY}${apiUrl}`);
+}
+
+function fetchJson(url) {
+  return new Promise((resolve) => {
+    try {
+      const parsed = new URL(url);
+      const req = get(
+        {
+          hostname: parsed.hostname,
+          path: parsed.pathname + parsed.search,
+          headers: {
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "SanchoAiIME-auto-updater",
+            "X-GitHub-Api-Version": "2022-11-28"
           }
-        });
-      }
-    );
-    req.on("error", () => resolve(null));
-    req.setTimeout(15000, () => {
-      req.destroy();
+        },
+        (res) => {
+          if (res.statusCode !== 200) {
+            resolve(null);
+            return;
+          }
+          const chunks = [];
+          res.on("data", (chunk) => chunks.push(chunk));
+          res.on("end", () => {
+            try {
+              resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+            } catch {
+              resolve(null);
+            }
+          });
+        }
+      );
+      req.on("error", () => resolve(null));
+      req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+        req.destroy();
+        resolve(null);
+      });
+      req.end();
+    } catch {
       resolve(null);
-    });
-    req.end();
+    }
   });
 }
 
 async function downloadFile(url, destPath, onProgress) {
-  return await new Promise((resolve, reject) => {
-    const req = get(
-      url,
-      {
-        headers: {
-          "Accept": "application/octet-stream",
-          "User-Agent": "SanchoAiIME-auto-updater"
-        }
-      },
-      (res) => {
-        if (res.statusCode === 302 || res.statusCode === 301) {
-          req.destroy();
-          downloadFile(res.headers.location, destPath, onProgress)
-            .then(resolve, reject);
-          return;
-        }
+  try {
+    return await downloadWithRedirect(url, destPath, onProgress);
+  } catch {
+    const mirrorUrl = `${MIRROR_PROXY}${url}`;
+    return await downloadWithRedirect(mirrorUrl, destPath, onProgress);
+  }
+}
 
-        if (res.statusCode !== 200) {
-          reject(new Error(`Download failed with status ${res.statusCode}`));
-          return;
-        }
-
-        const totalSize = Number(res.headers["content-length"] ?? 0);
-        let downloaded = 0;
-
-        const writeStream = createWriteStream(destPath);
-        res.on("data", (chunk) => {
-          downloaded += chunk.length;
-          if (totalSize > 0) {
-            onProgress({ downloaded, total: totalSize, percent: Math.round((downloaded / totalSize) * 100) });
+function downloadWithRedirect(originalUrl, destPath, onProgress) {
+  return new Promise((resolve, reject) => {
+    const handleUrl = (url) => {
+      const parsed = new URL(url);
+      const req = get(
+        {
+          hostname: parsed.hostname,
+          path: parsed.pathname + parsed.search,
+          headers: {
+            "Accept": "application/octet-stream",
+            "User-Agent": "SanchoAiIME-auto-updater"
           }
-        });
+        },
+        (res) => {
+          if (res.statusCode === 302 || res.statusCode === 301) {
+            req.destroy();
+            handleUrl(res.headers.location);
+            return;
+          }
 
-        pipeline(res, writeStream).then(resolve, reject);
-      }
-    );
+          if (res.statusCode !== 200) {
+            reject(new Error(`Download failed with status ${res.statusCode}`));
+            return;
+          }
 
-    req.on("error", reject);
-    req.setTimeout(600000, () => {
-      req.destroy();
-      reject(new Error("Download timed out after 10 minutes"));
-    });
-    req.end();
+          const totalSize = Number(res.headers["content-length"] ?? 0);
+          let downloaded = 0;
+
+          const writeStream = createWriteStream(destPath);
+          res.on("data", (chunk) => {
+            downloaded += chunk.length;
+            if (totalSize > 0) {
+              onProgress({ downloaded, total: totalSize, percent: Math.round((downloaded / totalSize) * 100) });
+            }
+          });
+
+          pipeline(res, writeStream).then(resolve, reject);
+        }
+      );
+
+      req.on("error", reject);
+      req.setTimeout(600000, () => {
+        req.destroy();
+        reject(new Error("Download timed out after 10 minutes"));
+      });
+      req.end();
+    };
+
+    handleUrl(originalUrl);
   });
 }
