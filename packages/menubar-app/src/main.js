@@ -41,7 +41,8 @@ import {
   approveSuggestion
 } from "./dict-distiller.js";
 import {
-  createLocalPredictorService
+  createLocalPredictorService,
+  setCorrectionCallback
 } from "./predictor-service.js";
 import {
   assertMacPlatform,
@@ -152,6 +153,19 @@ async function startPredictorRuntime() {
     commitLogPath
   });
   await predictorService.start();
+
+  setCorrectionCallback((result) => {
+    const lines = result.corrections.map(
+      (c) => `${c.original} → ${c.suggested}  (${c.reason})`
+    );
+    dialog.showMessageBox({
+      type: "info",
+      title: translator.t("typoCheckTitle"),
+      message: translator.t("typoCheckMessage").replace("{count}", String(result.corrections.length)),
+      detail: lines.join("\n"),
+      buttons: [translator.t("closeButton")]
+    }).catch(() => {});
+  });
 }
 
 async function resolvePredictorSettings(predictorSettings = {}) {

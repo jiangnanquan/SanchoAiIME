@@ -40,6 +40,9 @@ function isChineseContext() {
 }
 
 let lastCommitHash = "";
+let lastAnalyzedOffset = 0;
+let idleTimer = null;
+let correctionCallback = undefined;
 
 async function logCommits(commits, logPath) {
   if (!logPath || !commits) return;
@@ -53,6 +56,41 @@ async function logCommits(commits, logPath) {
     .map((line) => `${new Date().toISOString()}\t${line.trim()}\n`)
     .join("");
   await appendFile(logPath, lines, "utf8").catch(() => {});
+
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => void onTypingIdle(logPath), 4000);
+}
+
+async function onTypingIdle(logPath) {
+  if (!correctionCallback || !logPath) return;
+  try {
+    const { stat } = await import("node:fs/promises");
+    const fileStat = await stat(logPath).catch(() => null);
+    if (!fileStat || fileStat.size <= lastAnalyzedOffset + 30) return;
+    const { readFile } = await import("node:fs/promises");
+    const content = await readFile(logPath, "utf8");
+    const newText = content.slice(lastAnalyzedOffset);
+    if (newText.length < 30) return;
+    lastAnalyzedOffset = fileStat.size;
+    const { checkTypos } = await import("./corrector.js");
+    const result = await checkTypos({ text: extractCommitText(newText) });
+    if (result.corrections.length > 0) {
+      correctionCallback(result);
+    }
+  } catch { /* silent */ }
+}
+
+function extractCommitText(logContent) {
+  return logContent
+    .split("\n")
+    .filter((line) => line.trim())
+    .map((line) => line.split("\t").slice(1).join("").trim())
+    .filter(Boolean)
+    .join("");
+}
+
+export function setCorrectionCallback(callback) {
+  correctionCallback = callback;
 }
 
 export const DEFAULT_PREDICTOR_HOST = "127.0.0.1";
