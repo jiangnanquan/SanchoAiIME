@@ -1,4 +1,5 @@
 import { mkdir } from "node:fs/promises";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -34,6 +35,11 @@ import {
 } from "./model-runtime.js";
 import { createAutoUpdater } from "./auto-updater.js";
 import {
+  distillSuggestions,
+  readSuggestions,
+  approveSuggestion
+} from "./dict-distiller.js";
+import {
   createLocalPredictorService
 } from "./predictor-service.js";
 import {
@@ -65,6 +71,8 @@ let modelDownloadPromise;
 let modelProgressWindow;
 let predictorService;
 let autoUpdater;
+let commitLogPath;
+let suggestionsPath;
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
@@ -95,6 +103,9 @@ app.whenReady().then(async () => {
   translator = createMenubarTranslator();
   actionRegistry = createDefaultActionRegistry(translator);
   customPhrasePath = macCustomPhrasePath();
+  const userDataPath = app.getPath("userData");
+  commitLogPath = join(userDataPath, "commit_log.txt");
+  suggestionsPath = join(userDataPath, "ai_suggestions.json");
   registerRimeSettingsIpc();
   await startPredictorRuntime();
   await refreshDashboard();
@@ -136,7 +147,8 @@ async function startPredictorRuntime() {
   predictorService = createLocalPredictorService({
     settings: predictorSettings,
     runnerOptions: predictorSettings?.runner,
-    customPhrasePath
+    customPhrasePath,
+    commitLogPath
   });
   await predictorService.start();
 }
@@ -244,6 +256,12 @@ function buildMenu() {
       label: translator.t("openModelsDirectory"),
       click: () => {
         void openModelsDirectory().catch(showError);
+      }
+    },
+    {
+      label: translator.t("deepseekDistill"),
+      click: () => {
+        void runMenuTask(translator.t("deepseekDistilling"), distillAndShowSuggestions);
       }
     },
     { type: "separator" },
@@ -872,6 +890,78 @@ async function showDownloadCompleteDialog(dmgPath) {
 
   if (response === 0) {
     await shell.openPath(dmgPath);
+  }
+}
+
+async function distillAndShowSuggestions() {
+  if (!commitLogPath || !suggestionsPath) {
+    await dialog.showMessageBox({
+      type: "error",
+      message: translator.t("operationFailed"),
+      detail: "Commit log or suggestions path not configured."
+    });
+    return;
+  }
+
+  const result = await distillSuggestions({
+    commitLogPath,
+    suggestionsPath
+  });
+
+  if (result.reason === "no-log-data") {
+    await dialog.showMessageBox({
+      type: "info",
+      message: translator.t("deepseekDistillNoData"),
+      detail: translator.t("deepseekDistillNoDataDetail")
+    });
+    return;
+  }
+
+  if (result.suggestions.length === 0) {
+    await dialog.showMessageBox({
+      type: "info",
+      message: translator.t("deepseekDistillEmpty"),
+      detail: translator.t("deepseekDistillEmptyDetail")
+    });
+    return;
+  }
+
+  const lines = result.suggestions.map(
+    (s, i) => `${i + 1}. ${s.phrase}  [${s.code}]  w${s.weight}  — ${s.reason}`
+  );
+  const { response } = await dialog.showMessageBox({
+    type: "info",
+    title: translator.t("deepseekDistillTitle"),
+    message: translator.t("deepseekDistillMessage")
+      .replace("{count}", String(result.suggestions.length)),
+    detail: lines.join("\n"),
+    buttons: [
+      translator.t("deepseekDistillApprove"),
+      translator.t("closeButton")
+    ],
+    defaultId: 0
+  });
+
+  if (response === 0) {
+    const { response: approveIndex } = await dialog.showMessageBox({
+      type: "question",
+      title: translator.t("deepseekDistillTitle"),
+      message: translator.t("deepseekDistillSelectPrompt"),
+      detail: lines.join("\n"),
+      buttons: [
+        translator.t("deepseekDistillApproveAll"),
+        ...result.suggestions.map((s) => `${s.phrase} [${s.code}]`),
+        translator.t("cancelButton")
+      ]
+    });
+
+    // TODO: handle individual approve or approve all
+    await dialog.showMessageBox({
+      type: "info",
+      message: translator.t("deepseekDistillSaved"),
+      detail: translator.t("deepseekDistillSavedDetail")
+        .replace("{path}", suggestionsPath)
+    });
   }
 }
 

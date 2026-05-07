@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { readFile, stat } from "node:fs/promises";
+import { appendFile, readFile, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -35,6 +35,22 @@ function isChineseContext() {
     }
   }
   return chineseScore >= CODE_HISTORY.length * 0.5;
+}
+
+let lastCommitHash = "";
+
+async function logCommits(commits, logPath) {
+  if (!logPath || !commits) return;
+  const hash = Buffer.from(commits.slice(-100)).toString("base64");
+  if (hash === lastCommitHash) return;
+  lastCommitHash = hash;
+  const lines = commits
+    .replace(/[\r\n]+/g, "\n")
+    .split("\n")
+    .filter((line) => line.trim())
+    .map((line) => `${new Date().toISOString()}\t${line.trim()}\n`)
+    .join("");
+  await appendFile(logPath, lines, "utf8").catch(() => {});
 }
 
 export const DEFAULT_PREDICTOR_HOST = "127.0.0.1";
@@ -90,6 +106,7 @@ export async function predictForRime(input = {}, options = {}) {
   });
 
   const commits = cleanText(input.commits ?? "");
+  logCommits(commits, options.commitLogPath);
 
   const external = normalizeRunnerPrediction(options.runnerPrediction)
     ?? await maybeReadExternalPrediction({
@@ -178,6 +195,7 @@ class LocalPredictorService {
     });
     this.lexiconCache = {};
     this.enLexiconCache = {};
+    this.commitLogPath = options.commitLogPath;
     this.server = undefined;
     this.lastError = undefined;
     this.startedAt = undefined;
@@ -247,6 +265,7 @@ class LocalPredictorService {
       customPhrasePath: this.customPhrasePath,
       lexiconCache: this.lexiconCache,
       enLexiconCache: this.enLexiconCache,
+      commitLogPath: this.commitLogPath,
       runnerPrediction
     });
     if (!["disabled", "code-too-short"].includes(prediction.mode)) {
