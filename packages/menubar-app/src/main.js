@@ -32,6 +32,7 @@ import {
   ensureLocalPredictorOllamaModel,
   getLocalPredictorState
 } from "./model-runtime.js";
+import { createAutoUpdater } from "./auto-updater.js";
 import {
   createLocalPredictorService
 } from "./predictor-service.js";
@@ -63,6 +64,7 @@ let actionRegistry;
 let modelDownloadPromise;
 let modelProgressWindow;
 let predictorService;
+let autoUpdater;
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
@@ -98,6 +100,7 @@ app.whenReady().then(async () => {
   await refreshDashboard();
   createTray();
   await showDashboard();
+  initAutoUpdater();
 });
 
 app.on("window-all-closed", (event) => {
@@ -241,6 +244,13 @@ function buildMenu() {
       label: translator.t("openModelsDirectory"),
       click: () => {
         void openModelsDirectory().catch(showError);
+      }
+    },
+    { type: "separator" },
+    {
+      label: translator.t("checkForUpdates"),
+      click: () => {
+        void checkForUpdates();
       }
     },
     { type: "separator" },
@@ -755,6 +765,114 @@ function progressWindowHtml(currentTranslator) {
   </script>
 </body>
 </html>`)}`
+}
+
+function initAutoUpdater() {
+  autoUpdater = createAutoUpdater({
+    currentVersion: app.getVersion(),
+    onUpdateAvailable: (release) => {
+      void showUpdateDialog(release);
+    },
+    onNoUpdate: (reason) => {
+      // Silent unless explicitly triggered by user
+    },
+    onDownloadProgress: (progress) => {
+      if (tray) {
+        tray.setToolTip(`SanchoAiIME — ${translator.t("downloadingUpdate")} ${progress.percent}%`);
+      }
+    },
+    onDownloadComplete: (path) => {
+      if (tray) {
+        tray.setToolTip("SanchoAiIME");
+      }
+      void showDownloadCompleteDialog(path);
+    },
+    onError: (error) => {
+      void showError(error);
+    }
+  });
+
+  // Delay first check to let the app settle
+  setTimeout(() => {
+    void autoUpdater.checkForUpdates();
+  }, 5000);
+
+  autoUpdater.startPeriodicCheck();
+}
+
+async function checkForUpdates() {
+  if (!autoUpdater) {
+    return;
+  }
+  let result = undefined;
+  const originalOnUpdate = autoUpdater.onUpdateAvailable;
+  const originalOnNoUpdate = autoUpdater.onNoUpdate;
+  const originalOnError = autoUpdater.onError;
+
+  try {
+    result = await new Promise((resolve) => {
+      autoUpdater.onUpdateAvailable = (release) => resolve(release);
+      autoUpdater.onNoUpdate = (reason) => resolve(null);
+      autoUpdater.onError = (error) => { resolve(null); throw error; };
+      void autoUpdater.checkForUpdates();
+    });
+  } finally {
+    autoUpdater.onUpdateAvailable = originalOnUpdate;
+    autoUpdater.onNoUpdate = originalOnNoUpdate;
+    autoUpdater.onError = originalOnError;
+  }
+
+  if (result) {
+    await showUpdateDialog(result);
+  } else {
+    await dialog.showMessageBox({
+      type: "info",
+      message: translator.t("noUpdateAvailable"),
+      detail: translator.t("upToDateDetail")
+    });
+  }
+}
+
+async function showUpdateDialog(release) {
+  const { response } = await dialog.showMessageBox({
+    type: "info",
+    title: translator.t("updateAvailableTitle"),
+    message: translator.t("updateAvailableMessage")
+      .replace("{version}", release.version)
+      .replace("{name}", release.name),
+    detail: release.notes?.slice(0, 600) ?? "",
+    buttons: [
+      translator.t("downloadUpdate"),
+      translator.t("laterButton")
+    ],
+    defaultId: 0
+  });
+
+  if (response === 0) {
+    try {
+      await autoUpdater.downloadUpdate({ url: release.url });
+    } catch (error) {
+      await showError(error);
+    }
+  }
+}
+
+async function showDownloadCompleteDialog(dmgPath) {
+  const { response } = await dialog.showMessageBox({
+    type: "info",
+    title: translator.t("downloadCompleteTitle"),
+    message: translator.t("downloadCompleteMessage"),
+    detail: dmgPath,
+    buttons: [
+      translator.t("openDmgButton"),
+      translator.t("closeButton")
+    ],
+    defaultId: 0
+  });
+
+  if (response === 0) {
+    await shell.openPath(dmgPath);
+  }
 }
 
 async function showError(error) {
