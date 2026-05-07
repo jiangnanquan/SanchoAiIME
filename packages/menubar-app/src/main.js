@@ -776,9 +776,9 @@ function formatBytes(bytes) {
   return `${value.toFixed(fractionDigits)} ${units[unitIndex]}`;
 }
 
-function progressWindowHtml(currentTranslator) {
-  const initialStatus = currentTranslator.t("modelDownloadPreparing");
-  const title = currentTranslator.t("modelDownloadTitle");
+function progressWindowHtml(currentTranslator, options = {}) {
+  const initialStatus = options.initialStatus ?? currentTranslator.t("modelDownloadPreparing");
+  const title = options.title ?? currentTranslator.t("modelDownloadTitle");
   return `data:text/html;charset=utf-8,${encodeURIComponent(`<!doctype html>
 <html lang="${escapeHtml(currentTranslator.locale)}">
 <head>
@@ -801,6 +801,7 @@ function progressWindowHtml(currentTranslator) {
       color: var(--ink);
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       font-size: 13px;
+      overflow: hidden;
     }
     h1 {
       margin: 0 0 14px;
@@ -986,7 +987,10 @@ function showUpdateProgress() {
   updateProgressWindow.on("closed", () => {
     updateProgressWindow = undefined;
   });
-  void updateProgressWindow.loadURL(progressWindowHtml(translator));
+  void updateProgressWindow.loadURL(progressWindowHtml(translator, {
+    title: translator.t("updateAvailableTitle"),
+    initialStatus: translator.t("downloadingUpdate")
+  }));
 }
 
 function updateUpdateProgress(progress) {
