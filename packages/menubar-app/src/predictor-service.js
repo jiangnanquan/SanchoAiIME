@@ -1,3 +1,5 @@
+import { execSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import { appendFile, readFile, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -108,7 +110,7 @@ export async function predictForRime(input = {}, options = {}) {
   const commits = cleanText(input.commits ?? "");
   logCommits(commits, options.commitLogPath);
 
-  const dateTimePrediction = buildDateTimePrediction(code);
+  const dynamicPrediction = buildDynamicPredictions(code);
 
   const external = normalizeRunnerPrediction(options.runnerPrediction)
     ?? await maybeReadExternalPrediction({
@@ -120,7 +122,7 @@ export async function predictForRime(input = {}, options = {}) {
       timeoutMs: settings.timeoutMs
     });
 
-  return mergePredictions(local, external, enPrediction, dateTimePrediction, {
+  return mergePredictions(local, external, enPrediction, dynamicPrediction, {
     mode: external ? "external-runner+lexicon" : "lexicon",
     code,
     model: options.model
@@ -666,7 +668,7 @@ function normalizeAiComment(value, fallback) {
   return text.includes("AI") ? text : `${fallback} ${text}`;
 }
 
-function buildDateTimePrediction(code) {
+function buildDynamicPredictions(code) {
   if (!code) return { suggestions: [] };
   const now = new Date();
   const Y = String(now.getFullYear());
@@ -675,20 +677,32 @@ function buildDateTimePrediction(code) {
   const h = String(now.getHours()).padStart(2, "0");
   const mi = String(now.getMinutes()).padStart(2, "0");
   const s = String(now.getSeconds()).padStart(2, "0");
+
+  let clipboardText = "";
+  if (code === "jt") {
+    try {
+      clipboardText = execSync("pbpaste", { encoding: "utf8", timeout: 500 }).trim();
+    } catch { /* clipboard unavailable */ }
+  }
+
   const triggers = {
     rq: { text: `${Y}${M}${D}`, comment: "日期" },
-    dt: { text: `${Y}${M}${D} ${h}:${mi}:${s}`, comment: "日期时间" }
+    dt: { text: `${Y}${M}${D} ${h}:${mi}:${s}`, comment: "日期时间" },
+    ts: { text: String(Math.floor(now.getTime() / 1000)), comment: "时间戳" },
+    uid: { text: randomUUID(), comment: "UUID" },
+    jt: clipboardText ? { text: clipboardText, comment: "剪贴板" } : null
   };
+
   const suggestions = [];
   for (const [triggerCode, entry] of Object.entries(triggers)) {
-    if (code === triggerCode) {
+    if (entry && code === triggerCode) {
       suggestions.push({ text: entry.text, score: 200000, comment: entry.comment, code: triggerCode });
     }
   }
   return { suggestions };
 }
 
-function mergePredictions(local, external, enPrediction, dateTimePrediction, options) {
+function mergePredictions(local, external, enPrediction, dynamicPrediction, options) {
   const rankByText = new Map();
   for (const row of local.rank) {
     rankByText.set(row.text, row);
@@ -705,7 +719,7 @@ function mergePredictions(local, external, enPrediction, dateTimePrediction, opt
 
   const suggestions = [];
   const seenSuggestions = new Set();
-  for (const row of [...(external?.suggestions ?? []), ...(enPrediction?.suggestions ?? []), ...(dateTimePrediction?.suggestions ?? []), ...local.suggestions]) {
+  for (const row of [...(external?.suggestions ?? []), ...(dynamicPrediction?.suggestions ?? []), ...(enPrediction?.suggestions ?? []), ...local.suggestions]) {
     if (seenSuggestions.has(row.text)) {
       continue;
     }
