@@ -193,6 +193,11 @@ function buildMenu() {
   const loginItemSettings = app.getLoginItemSettings();
   return Menu.buildFromTemplate([
     {
+      label: `SanchoAiIME v${app.getVersion()}`,
+      enabled: false
+    },
+    { type: "separator" },
+    {
       label: translator.t("openDashboard"),
       click: () => {
         void showDashboard();
@@ -842,8 +847,8 @@ function initAutoUpdater() {
     onUpdateAvailable: (release) => {
       void showUpdateDialog(release);
     },
-    onNoUpdate: (reason) => {
-      // Silent unless explicitly triggered by user
+    onNoUpdate: () => {
+      // Silent — only notify if update is available
     },
     onDownloadProgress: (progress) => {
       if (tray) {
@@ -856,17 +861,14 @@ function initAutoUpdater() {
       }
       void showDownloadCompleteDialog(path);
     },
-    onError: (error) => {
-      void showError(error);
+    onError: () => {
+      // Silent on startup check errors
     }
   });
 
-  // Delay first check to let the app settle
   setTimeout(() => {
     void autoUpdater.checkForUpdates();
   }, 5000);
-
-  autoUpdater.startPeriodicCheck();
 }
 
 async function checkForUpdates() {
