@@ -1,6 +1,6 @@
 {
   "name": "@sancho-ai-ime/cloud-teacher",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Cloud teacher integrations for offline SanchoAiIME maintenance jobs.",
   "type": "module",
   "license": "Apache-2.0",

@@ -1,6 +1,6 @@
 {
   "name": "sancho-ai-ime",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "description": "AI-native personal input method project.",
   "type": "module",
