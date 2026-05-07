@@ -15,6 +15,28 @@ import {
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_EN_WORD_LIST_PATH = resolve(MODULE_DIR, "en-word-list.json");
 
+const CODE_HISTORY = [];
+const MAX_CODE_HISTORY = 8;
+
+function recordCode(code) {
+  CODE_HISTORY.push(code);
+  if (CODE_HISTORY.length > MAX_CODE_HISTORY) {
+    CODE_HISTORY.shift();
+  }
+}
+
+function isChineseContext() {
+  if (CODE_HISTORY.length < 3) return false;
+  const pinyinPattern = /^[a-z]{1,6}$/;
+  let chineseScore = 0;
+  for (const code of CODE_HISTORY) {
+    if (pinyinPattern.test(code) && /^[bpmfdtnlgkhjqxzcsryw]?[aeiouv]/.test(code)) {
+      chineseScore += 1;
+    }
+  }
+  return chineseScore >= CODE_HISTORY.length * 0.5;
+}
+
 export const DEFAULT_PREDICTOR_HOST = "127.0.0.1";
 export const DEFAULT_PREDICTOR_PORT = 18840;
 export const DEFAULT_PREDICTOR_TIMEOUT_MS = 80;
@@ -52,6 +74,9 @@ export async function predictForRime(input = {}, options = {}) {
     limit: settings.candidateLimit
   });
 
+  recordCode(code);
+  const chineseContext = isChineseContext();
+
   const enLexicon = await readEnglishLexicon({
     enWordListPath: options.enWordListPath ?? DEFAULT_EN_WORD_LIST_PATH,
     cache: options.enLexiconCache
@@ -60,7 +85,8 @@ export async function predictForRime(input = {}, options = {}) {
     code,
     candidates,
     enLexicon,
-    limit: Math.min(3, settings.candidateLimit)
+    limit: Math.min(3, settings.candidateLimit),
+    chineseContext
   });
 
   const external = normalizeRunnerPrediction(options.runnerPrediction)
@@ -366,10 +392,13 @@ function buildEnglishPrediction(input) {
   scored.sort((a, b) => b.score - a.score);
 
   const suggestions = [];
-  const limit = input.limit ?? 3;
+  const limit = input.chineseContext ? 1 : (input.limit ?? 3);
   for (const item of scored) {
     if (suggestions.length >= limit) {
       break;
+    }
+    if (input.chineseContext) {
+      item.score = Math.floor(item.score * 0.3);
     }
     suggestions.push(item);
   }
@@ -420,6 +449,38 @@ function buildLocalPrediction(input) {
     }
   }
 
+  const variants = fuzzyPinyinVariants(code);
+  if (variants.length > 0 && suggestions.length < 3) {
+    const variantScores = [];
+    for (const variant of variants) {
+      for (const entry of input.lexicon.entries) {
+        if (entry.exact) continue;
+        const normalizedCode = normalizeCode(entry.code);
+        if (normalizedCode === variant) {
+          const score = 80000 + Math.max(1, Number(entry.weight) || 1);
+          variantScores.push({ entry, score });
+        }
+      }
+    }
+    variantScores.sort((a, b) => b.score - a.score);
+    for (const item of variantScores) {
+      const text = item.entry.text;
+      if (existingTexts.has(text) || suggestions.some((s) => s.text === text)) {
+        continue;
+      }
+      suggestions.push({
+        text,
+        score: item.score,
+        comment: "Sancho 纠错",
+        code: item.entry.code,
+        position: item.entry.candidatePosition
+      });
+      if (suggestions.length >= 3) {
+        break;
+      }
+    }
+  }
+
   return {
     mode: "lexicon",
     rank,
@@ -439,6 +500,9 @@ function scoreLexiconEntry(entry, code) {
   if (entryCode === code) {
     return 200000 + base;
   }
+  if (entry.exact) {
+    return 0;
+  }
   if (entry.source === "managed") {
     return 0;
   }
@@ -449,6 +513,42 @@ function scoreLexiconEntry(entry, code) {
     return 70000 + base - ((code.length - entryCode.length) * 60);
   }
   return 0;
+}
+
+function fuzzyPinyinVariants(code) {
+  const variants = new Set();
+  const rules = [
+    ["eng", "en"], ["en", "eng"],
+    ["ing", "in"], ["in", "ing"],
+    ["ang", "an"], ["an", "ang"],
+    ["ong", "on"], ["on", "ong"]
+  ];
+  for (const [from, to] of rules) {
+    if (code.endsWith(from)) {
+      variants.add(code.slice(0, -from.length) + to);
+    }
+    const idx = code.indexOf(from);
+    if (idx > 0) {
+      variants.add(code.slice(0, idx) + to + code.slice(idx + from.length));
+    }
+  }
+  const initials = [
+    ["zh", "z"], ["z", "zh"],
+    ["ch", "c"], ["c", "ch"],
+    ["sh", "s"], ["s", "sh"],
+    ["n", "l"], ["l", "n"]
+  ];
+  for (const [from, to] of initials) {
+    if (code.startsWith(from)) {
+      variants.add(to + code.slice(from.length));
+    }
+  }
+  for (let i = 0; i < code.length; i += 1) {
+    const deleted = code.slice(0, i) + code.slice(i + 1);
+    if (deleted.length >= 2) variants.add(deleted);
+  }
+  variants.delete(code);
+  return Array.from(variants);
 }
 
 async function maybeReadExternalPrediction(options) {

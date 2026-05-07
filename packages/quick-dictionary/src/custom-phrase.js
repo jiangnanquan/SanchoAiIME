@@ -17,6 +17,7 @@ const MAX_WEIGHT = 999999;
 const MIN_CANDIDATE_POSITION = 1;
 const MAX_CANDIDATE_POSITION = 9;
 const POSITION_MARKER_PREFIX = "# @sancho candidate_position=";
+const EXACT_MARKER = "# @sancho exact";
 
 export function defaultCustomPhrasePath(home = homedir()) {
   return join(home, "Library", "Rime", "custom_phrase.txt");
@@ -40,10 +41,16 @@ export function normalizeEntry(input) {
   const candidatePosition = normalizeCandidatePosition(
     input.candidatePosition ?? input.candidate_position ?? input.position
   );
+  const exact = input.exact === true;
 
-  return candidatePosition === undefined
-    ? { surface, code, weight }
-    : { surface, code, weight, candidatePosition };
+  const base = { surface, code, weight };
+  if (candidatePosition !== undefined) {
+    base.candidatePosition = candidatePosition;
+  }
+  if (exact) {
+    base.exact = true;
+  }
+  return base;
 }
 
 export function normalizeEntries(entries) {
@@ -69,9 +76,14 @@ export function renderEntry(entry) {
 export function renderUserEntry(entry) {
   const normalized = normalizeEntry(entry);
   const line = renderEntry(normalized);
-  return normalized.candidatePosition === undefined
-    ? line
-    : `${POSITION_MARKER_PREFIX}${normalized.candidatePosition}\n${line}`;
+  const annotations = [];
+  if (normalized.candidatePosition !== undefined) {
+    annotations.push(`${POSITION_MARKER_PREFIX}${normalized.candidatePosition}`);
+  }
+  if (normalized.exact) {
+    annotations.push(EXACT_MARKER);
+  }
+  return annotations.length === 0 ? line : `${annotations.join("\n")}\n${line}`;
 }
 
 export function parseCustomPhraseText(text) {
@@ -85,6 +97,7 @@ export function parseCustomPhraseText(text) {
   let blankRowCount = 0;
   let commentRowCount = 0;
   let pendingCandidatePosition;
+  let pendingExact = false;
 
   text.split(/\r?\n/).forEach((line, index) => {
     const lineNumber = index + 1;
@@ -107,6 +120,9 @@ export function parseCustomPhraseText(text) {
       if (position !== undefined) {
         pendingCandidatePosition = position;
       }
+      if (trimmed === EXACT_MARKER) {
+        pendingExact = true;
+      }
       return;
     }
 
@@ -126,9 +142,11 @@ export function parseCustomPhraseText(text) {
         surface: parts[0],
         code: parts[1],
         weight: parts[2] === undefined || parts[2] === "" ? DEFAULT_WEIGHT : parts[2],
-        candidatePosition: pendingCandidatePosition
+        candidatePosition: pendingCandidatePosition,
+        exact: pendingExact || undefined
       });
       pendingCandidatePosition = undefined;
+      pendingExact = false;
       entries.push({
         ...entry,
         preview: decodeCustomPhraseEscapes(entry.surface),
