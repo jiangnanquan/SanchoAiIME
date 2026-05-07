@@ -95,17 +95,20 @@ export async function predictForRime(input = {}, options = {}) {
   recordCode(code);
   const chineseContext = isChineseContext();
 
-  const enLexicon = await readEnglishLexicon({
-    enWordListPath: options.enWordListPath ?? DEFAULT_EN_WORD_LIST_PATH,
-    cache: options.enLexiconCache
-  });
-  const enPrediction = buildEnglishPrediction({
-    code,
-    candidates,
-    enLexicon,
-    limit: Math.min(3, settings.candidateLimit),
-    chineseContext
-  });
+  let enPrediction = { suggestions: [] };
+  if (settings.mixedInput !== false) {
+    const enLexicon = await readEnglishLexicon({
+      enWordListPath: options.enWordListPath ?? DEFAULT_EN_WORD_LIST_PATH,
+      cache: options.enLexiconCache
+    });
+    enPrediction = buildEnglishPrediction({
+      code,
+      candidates,
+      enLexicon,
+      limit: Math.min(3, settings.candidateLimit),
+      chineseContext
+    });
+  }
 
   const commits = cleanText(input.commits ?? "");
   logCommits(commits, options.commitLogPath);
@@ -153,6 +156,7 @@ export function normalizePredictorSettings(input = {}) {
       12,
       "minCodeLength"
     ),
+    mixedInput: raw.mixedInput !== false,
     runner: normalizeRunnerSettings(raw.runner)
   };
 }

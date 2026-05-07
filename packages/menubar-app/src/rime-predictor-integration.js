@@ -36,6 +36,7 @@ export const DEFAULT_RIME_PREDICTOR_SETTINGS = Object.freeze({
   timeoutMs: DEFAULT_PREDICTOR_TIMEOUT_MS,
   candidateLimit: DEFAULT_PREDICTOR_CANDIDATE_LIMIT,
   minCodeLength: DEFAULT_PREDICTOR_MIN_CODE_LENGTH,
+  mixedInput: true,
   runner: {
     provider: "none"
   }

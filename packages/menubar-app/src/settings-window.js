@@ -38,6 +38,7 @@ export function renderRimeSettingsHtml(translator) {
     vertical: t("rimeSettingsVertical"),
     inlinePreedit: t("rimeSettingsInlinePreedit"),
     englishPunctuation: t("rimeSettingsEnglishPunctuation"),
+    mixedInput: t("rimeSettingsMixedInput"),
     behaviorTitle: t("rimeSettingsBehaviorTitle"),
     pageSize: t("rimeSettingsPageSize"),
     fontPoint: t("rimeSettingsFontPoint"),
@@ -641,6 +642,10 @@ export function renderRimeSettingsHtml(translator) {
           <label for="englishPunctuation">${escapeHtml(labels.englishPunctuation)}</label>
           <input id="englishPunctuation" name="englishPunctuation" type="checkbox">
         </div>
+        <div class="row">
+          <label for="mixedInput">${escapeHtml(labels.mixedInput)}</label>
+          <input id="mixedInput" name="mixedInput" type="checkbox" checked>
+        </div>
       </section>
 
       <div class="actions">
@@ -661,6 +666,7 @@ export function renderRimeSettingsHtml(translator) {
     const pageSize = document.getElementById("pageSize");
     const inlinePreedit = document.getElementById("inlinePreedit");
     const englishPunctuation = document.getElementById("englishPunctuation");
+    const mixedInput = document.getElementById("mixedInput");
     const fontPoint = document.getElementById("fontPoint");
     const fontPointValue = document.getElementById("fontPointValue");
     const cornerRadius = document.getElementById("cornerRadius");
@@ -748,6 +754,7 @@ export function renderRimeSettingsHtml(translator) {
       cornerRadius.value = settings.cornerRadius;
       inlinePreedit.checked = settings.inlinePreedit;
       englishPunctuation.checked = settings.englishPunctuation === true;
+      mixedInput.checked = settings.predictor?.mixedInput !== false;
       setSkinInputs(skinForScheme(settings.colorScheme, settings.customSkin));
       syncRangeOutputs();
     }
@@ -767,6 +774,7 @@ export function renderRimeSettingsHtml(translator) {
         cornerRadius: Number(cornerRadius.value),
         inlinePreedit: inlinePreedit.checked,
         englishPunctuation: englishPunctuation.checked,
+        predictor: { mixedInput: mixedInput.checked },
         customSkin: getSkinInputs()
       };
     }

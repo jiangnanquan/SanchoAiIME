@@ -125,6 +125,7 @@ export const DEFAULT_RIME_SETTINGS = Object.freeze({
     timeoutMs: 80,
     candidateLimit: 12,
     minCodeLength: 2,
+    mixedInput: true,
     runner: {
       provider: "none"
     }
@@ -521,6 +522,7 @@ function normalizePredictorSettingBlock(input) {
       { min: 1, max: 12 },
       "predictor.minCodeLength"
     ),
+    mixedInput: booleanValue(raw.mixedInput, "predictor.mixedInput"),
     runner: normalizeRunnerSettingBlock(raw.runner)
   };
 }
