@@ -51,6 +51,7 @@ export function renderRimeSettingsHtml(translator) {
     aiSkinPlaceholder: t("rimeSkinAiPlaceholder"),
     aiSkinWorking: t("rimeSkinAiWorking"),
     aiSkinApplied: t("rimeSkinAiApplied"),
+    builtInSkinPreview: t("rimeSkinBuiltInPreview"),
     deepSeekTitle: t("deepSeekCredentialTitle"),
     deepSeekStatus: t("deepSeekCredentialStatus"),
     deepSeekAvailableEnv: t("deepSeekCredentialAvailableEnv"),
@@ -382,6 +383,27 @@ export function renderRimeSettingsHtml(translator) {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
+    }
+
+    .built-in-preview {
+      display: grid;
+      place-items: center;
+      min-height: 140px;
+      background: var(--panel);
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+    }
+
+    .preview-builtin-msg {
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    input:disabled,
+    input[type="color"]:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
     }
 
     .skin-ai {
@@ -755,14 +777,29 @@ export function renderRimeSettingsHtml(translator) {
       updatePreview();
     }
 
+    function isBuiltInScheme(scheme) {
+      return scheme !== "sancho_custom" && !(scheme in skinPresets);
+    }
+
     function skinForScheme(scheme, customSkin) {
       if (scheme === "sancho_custom") {
         return customSkin || defaultCustomSkin;
       }
-      return skinPresets[scheme] || customSkin || defaultCustomSkin;
+      if (scheme in skinPresets) {
+        return skinPresets[scheme];
+      }
+      return null;
     }
 
     function setSkinInputs(skin) {
+      if (!skin) {
+        colorInputs.forEach((input) => { input.disabled = true; });
+        customSkinName.disabled = true;
+        updatePreview();
+        return;
+      }
+      colorInputs.forEach((input) => { input.disabled = false; });
+      customSkinName.disabled = false;
       customSkinName.value = skin.name;
       for (const input of colorInputs) {
         input.value = skin[input.dataset.skinField];
@@ -787,6 +824,18 @@ export function renderRimeSettingsHtml(translator) {
     }
 
     function updatePreview() {
+      const scheme = colorScheme.value;
+      const builtIn = isBuiltInScheme(scheme);
+      if (builtIn) {
+        skinPreview.style.cssText = "";
+        skinPreview.classList.add("built-in-preview");
+        skinPreview.classList.remove("linear", "vertical-text");
+        skinPreview.innerHTML = '<span class="preview-builtin-msg">' +
+          escapeHtmlClient(labels.builtInSkinPreview || "使用 Squirrel 内置配色") +
+          '</span>';
+        return;
+      }
+      skinPreview.classList.remove("built-in-preview");
       const skin = getSkinInputs();
       skinPreview.style.setProperty("--preview-back", skin.backColor);
       skinPreview.style.setProperty("--preview-border", skin.borderColor);
@@ -814,6 +863,8 @@ export function renderRimeSettingsHtml(translator) {
     function switchToCustomSkin() {
       if (colorScheme.value !== "sancho_custom") {
         colorScheme.value = "sancho_custom";
+        colorInputs.forEach((input) => { input.disabled = false; });
+        customSkinName.disabled = false;
       }
       updatePreview();
     }
@@ -825,7 +876,12 @@ export function renderRimeSettingsHtml(translator) {
       input.addEventListener("change", updatePreview);
     }
     colorScheme.addEventListener("change", () => {
-      setSkinInputs(skinForScheme(colorScheme.value, getSkinInputs()));
+      const scheme = colorScheme.value;
+      if (scheme === "sancho_custom") {
+        setSkinInputs(getSkinInputs());
+      } else {
+        setSkinInputs(skinForScheme(scheme, getSkinInputs()));
+      }
     });
     customSkinName.addEventListener("input", switchToCustomSkin);
     for (const input of colorInputs) {
