@@ -1,6 +1,6 @@
 {
   "name": "@sancho-ai-ime/menubar-app",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "description": "macOS menu bar shell for SanchoAiIME.",
   "author": "SanchoAiIME contributors",
