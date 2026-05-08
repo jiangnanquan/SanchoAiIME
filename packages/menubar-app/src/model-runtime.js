@@ -46,9 +46,12 @@ export async function ensureLocalPredictorOllamaModel(options = {}) {
 
   const sourceExists = await ollamaModelExists(ollamaExecutable, sourceModel, options);
   if (!sourceExists) {
-    throw new Error(
-      `Base model ${sourceModel} is not available. Run: ollama pull ${sourceModel}`
-    );
+    if (options.onProgress) {
+      options.onProgress({ status: "pulling", detail: sourceModel });
+    }
+    await execFilePromise(ollamaExecutable, ["pull", sourceModel], {
+      timeoutMs: options.timeoutMs ?? 600000
+    });
   }
 
   const exists = !options.recreate && await ollamaModelExists(ollamaExecutable, modelName, options);

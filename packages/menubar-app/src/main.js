@@ -504,13 +504,23 @@ async function runModelDownload() {
       detail: translator.t("modelDownloadActivating"),
       percent: 0.5
     });
-    const result = await ensureLocalPredictorOllamaModel({ recreate: true });
+    const result = await ensureLocalPredictorOllamaModel({
+      recreate: true,
+      onProgress: (progress) => {
+        updateModelProgressWindow({
+          status: progress.status === "pulling"
+            ? translator.t("modelDownloadDownloading")
+            : translator.t("modelDownloadActivating"),
+          detail: progress.detail ?? "",
+          percent: 0.3
+        });
+      }
+    });
     updateModelProgressWindow({
       status: translator.t("modelDownloadRegistering"),
       detail: result.modelName,
-      percent: 1
+      percent: 0.8
     });
-    await ensureLocalPredictorOllamaModel({ recreate: true });
     await startPredictorRuntime();
     await refreshDashboard();
     await reloadDashboardWindow();
