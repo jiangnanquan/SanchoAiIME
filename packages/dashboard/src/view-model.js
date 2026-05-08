@@ -225,8 +225,8 @@ export function createSampleDashboardInput(options = {}) {
         role: "local-realtime-predictor",
         status: "planned",
         source: {
-          type: "huggingface",
-          repository: "lmstudio-community/Qwen2.5-0.5B-Instruct-GGUF",
+          type: "ollama",
+          repository: "ministral-3:3b",
           license: "Apache-2.0"
         },
         artifacts: [],
