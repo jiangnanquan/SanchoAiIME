@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { accessSync, constants } from "node:fs";
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -26,7 +27,7 @@ export function localPredictorRunnerSettings(options = {}) {
 
 export async function getLocalPredictorState(options = {}) {
   const modelName = options.modelName ?? LOCAL_PREDICTOR_OLLAMA_MODEL;
-  const ollamaExecutable = options.ollamaExecutable ?? process.env.SANCHO_OLLAMA_BIN ?? "ollama";
+  const ollamaExecutable = resolveOllamaExecutable(options);
   const exists = await ollamaModelExists(ollamaExecutable, modelName, options);
   return {
     manifest: { id: LOCAL_PREDICTOR_MODEL_ID, name: "Mistral 3 3.8B" },
@@ -39,10 +40,19 @@ export async function getLocalPredictorState(options = {}) {
   };
 }
 
+function resolveOllamaExecutable(options = {}) {
+  if (options.ollamaExecutable) return options.ollamaExecutable;
+  if (process.env.SANCHO_OLLAMA_BIN) return process.env.SANCHO_OLLAMA_BIN;
+  for (const candidate of ["/opt/homebrew/bin/ollama", "/usr/local/bin/ollama"]) {
+    try { accessSync(candidate, constants.X_OK); return candidate; } catch {}
+  }
+  return "ollama";
+}
+
 export async function ensureLocalPredictorOllamaModel(options = {}) {
   const modelName = options.modelName ?? LOCAL_PREDICTOR_OLLAMA_MODEL;
   const sourceModel = LOCAL_PREDICTOR_OLLAMA_SOURCE;
-  const ollamaExecutable = options.ollamaExecutable ?? process.env.SANCHO_OLLAMA_BIN ?? "ollama";
+  const ollamaExecutable = resolveOllamaExecutable(options);
 
   const sourceExists = await ollamaModelExists(ollamaExecutable, sourceModel, options);
   if (!sourceExists) {
