@@ -24,11 +24,11 @@ First launch: right-click → Open (ad-hoc signing requires Gatekeeper bypass).
 2. 添加/切换到 **鼠须管 / Squirrel** → 鼠须管菜单执行 **重新部署**
 3. 菜单栏打开 **输入法外观与行为** → 设置字体、候选数量、配色、英文标点等
 4. （可选）配置 **DeepSeek API Key** → 可使用 Flash 皮肤助手
-5. （可选）**下载本地小模型** → 一键下载 Qwen2.5-0.5B GGUF（约 398MB，Ollama 推理）
+5. （可选）**下载本地小模型** → 自动拉取 Mistral 3 3.8B（约 3.0 GB，需 Ollama）
 
 ---
 
-## v0.2.0 功能 / Features
+## v0.5 功能 / Features
 
 | 功能 Feature | 说明 Description |
 |---|---|
@@ -41,19 +41,21 @@ First launch: right-click → Open (ad-hoc signing requires Gatekeeper bypass).
 | English punctuation | Toggle to use English punctuation in Chinese mode |
 | 中英混输 | 中文模式下直接输入英文，联想候选栏同时出现 EN 词和中文短语 |
 | Mixed input | Type English directly in Chinese mode, get both EN and CN candidates |
-| 本地小模型 / Local model | 一键下载 Qwen2.5-0.5B GGUF（Ollama），SHA256 校验 |
+| 本地小模型 / Local model | Mistral 3 3.8B，Ollama 一键拉取 + 自动配置 |
 | DeepSeek Flash 预测 | 可选云端候选重排和下一词预测（需 Key） |
 | DeepSeek Flash cloud prediction | Optional cloud candidate reranking and next-word prediction (needs Key) |
 | Rime 皮肤 / Skin | 4 套预设 + 自定义编辑器 + DeepSeek Flash AI 生成 |
 | 快速字典 | marker 托管区同步 `custom_phrase.txt`，不覆盖用户手写 |
 | i18n | 简体中文（默认）/ English (via `SANCHO_LOCALE=en-US`) |
 | 词库导入 / Import | 搜狗/QQ 拼音/百度/Rime/macOS 等格式 + Flash AI 分析 |
+| 输入统计 / Telemetry | 本地埋点 → Flash 分析 → 效率报告 + 短码建议 |
+| 错别字检测 / Typo check | 空闲时 DeepSeek Flash 自动检测同音错字 |
 | 发布工具链 / Release | release gate、SBOM、npm tarball、DMG + ZIP 打包 |
 
 ## 构建 / Build
 
 ```sh
-npm test                         # 124 tests
+npm test                         # 130 tests
 npm run release:check            # release gate
 npm run release:sbom             # SBOM generation
 npm run menubar:package:mac      # DMG packaging
@@ -74,7 +76,7 @@ dist/menubar-app/SanchoAiIME-arm64-v*.dmg    (124MB)
 | `packages/menubar-app` | macOS Electron 菜单栏 App |
 | `packages/dashboard` | 静态 HTML 管理面板 / Static HTML management panel |
 | `packages/quick-dictionary` | Rime `custom_phrase.txt` 读写 / read-write |
-| `packages/model-orchestrator` | GGUF 模型下载/校验/benchmark |
+| `packages/model-orchestrator` | 模型下载/校验/快照/benchmark |
 | `packages/cloud-teacher` | DeepSeek V4 Flash 离线分析 / offline analysis |
 | `packages/lexicon-importer` | 外部词库导入 / external lexicon import |
 
@@ -107,7 +109,7 @@ SANCHO_LOCALE=en-US npm run menubar:dev
 ## 测试 / Tests
 
 ```sh
-npm test    # 124 tests
+npm test    # 130 tests
 ```
 
 覆盖：predictor-service（词库预测、英文联想、Flash runner 合并）、dashboard view-model 与 HTML 渲染、quick-dictionary 解析与同步、model-orchestrator bootstrap 与 manifest、cloud-teacher DeepSeek CLI + flash-tasks + lexicon-analyzer、lexicon-importer 导入与适配器、rime-settings 读写与部署、release gate 与 SBOM 生成。
@@ -117,5 +119,5 @@ npm test    # 124 tests
 项目自有代码 / Project code: **Apache-2.0**
 
 - Rime `librime` — BSD-3-Clause; Squirrel — GPL-3.0（Sancho 不捆绑，只生成配置和 Lua 扩展）
-- Qwen 模型权重 — Apache-2.0
+- Mistral 3 / Qwen 模型权重 — Apache-2.0
 - cspell-dicts 词库 — MIT
