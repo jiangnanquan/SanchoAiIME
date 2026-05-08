@@ -150,6 +150,6 @@ test("omits private lexicon import entries from the dashboard model", () => {
 test("defaults to the Qwen local predictor model card", () => {
   const model = createDashboardViewModel();
 
-  assert.equal(model.models[0].id, "qwen2.5-0.5b-instruct-q4_k_m");
+  assert.equal(model.models[0].id, "ministral-3-3b");
   assert.equal(model.models[0].source.license, "Apache-2.0");
 });

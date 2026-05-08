@@ -3,16 +3,16 @@ import { createTranslator } from "./i18n.js";
 export const DEFAULT_DASHBOARD_TITLE = "SanchoAiIME 控制台";
 
 const DEFAULT_MODEL_CARD = {
-  id: "qwen2.5-0.5b-instruct-q4_k_m",
-  name: "Qwen2.5-0.5B-Instruct GGUF Q4_K_M",
+  id: "ministral-3-3b",
+  name: "Mistral 3 3.8B",
   role: "local-realtime-predictor",
   status: "not-configured",
   source: {
-    type: "huggingface",
-    repository: "lmstudio-community/Qwen2.5-0.5B-Instruct-GGUF",
+    type: "ollama",
+    repository: "ministral-3:3b",
     license: "Apache-2.0"
   },
-  artifactCount: 1,
+  artifactCount: 0,
   benchmark: {
     iterations: 3,
     timeoutMs: 30000
@@ -220,8 +220,8 @@ export function createSampleDashboardInput(options = {}) {
     },
     models: [
       {
-        id: "qwen2.5-0.5b-instruct-q4_k_m",
-        name: "Qwen2.5-0.5B-Instruct GGUF Q4_K_M",
+        id: "ministral-3-3b",
+        name: "Mistral 3 3.8B",
         role: "local-realtime-predictor",
         status: "planned",
         source: {

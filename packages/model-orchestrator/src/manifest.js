@@ -35,8 +35,31 @@ const BUILTIN_QWEN25_05B_INSTRUCT_GGUF = {
   }
 };
 
+const BUILTIN_MINISTRAL_3_3B = {
+  schemaVersion: 1,
+  id: "ministral-3-3b",
+  name: "Mistral 3 3.8B",
+  role: "local-realtime-predictor",
+  source: {
+    type: "ollama",
+    repository: "ministral-3:3b",
+    license: "Apache-2.0"
+  },
+  storage: {
+    directory: "ministral-3-3b"
+  },
+  artifacts: [],
+  benchmark: {
+    prompt: "Sancho local predictor health check. Reply with OK.",
+    iterations: 3,
+    warmup: 1,
+    timeoutMs: 30000
+  }
+};
+
 export const BUILTIN_MODEL_MANIFESTS = Object.freeze({
-  [QWEN25_05B_INSTRUCT_GGUF_MODEL_ID]: normalizeModelManifest(BUILTIN_QWEN25_05B_INSTRUCT_GGUF)
+  [QWEN25_05B_INSTRUCT_GGUF_MODEL_ID]: normalizeModelManifest(BUILTIN_QWEN25_05B_INSTRUCT_GGUF),
+  [BUILTIN_MINISTRAL_3_3B.id]: normalizeModelManifest(BUILTIN_MINISTRAL_3_3B)
 });
 
 export async function loadModelManifest(identifier = QWEN25_05B_INSTRUCT_GGUF_MODEL_ID) {

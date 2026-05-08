@@ -7,79 +7,14 @@ import {
   defaultModelsDir,
   loadModelManifest,
   planModelBootstrap,
-  QWEN25_05B_INSTRUCT_GGUF_MODEL_ID,
   resolveModelLayout
 } from "@sancho-ai-ime/model-orchestrator";
 
-export const LOCAL_PREDICTOR_MODEL_ID = QWEN25_05B_INSTRUCT_GGUF_MODEL_ID;
+export const LOCAL_PREDICTOR_MODEL_ID = "ministral-3-3b";
+export const LOCAL_PREDICTOR_OLLAMA_SOURCE = "ministral-3:3b";
+export const LOCAL_PREDICTOR_OLLAMA_MODEL = "sancho-mistral-3b:latest";
 export const ACTIVE_MODEL_FILENAME = "active-model.json";
-export const LOCAL_PREDICTOR_OLLAMA_MODEL = "sancho-qwen2.5-0.5b:latest";
-export const LOCAL_PREDICTOR_MODELFILE = "Modelfile.sancho";
-
-export async function getLocalPredictorState(options = {}) {
-  const manifest = options.manifest
-    ?? await loadModelManifest(options.modelId ?? LOCAL_PREDICTOR_MODEL_ID);
-  const layout = resolveModelLayout(manifest, {
-    modelsDir: options.modelsDir ?? defaultModelsDir()
-  });
-  const plan = await planModelBootstrap(manifest, {
-    modelsDir: layout.modelsDir
-  });
-  const active = await readActiveModel(layout.modelsDir);
-  const artifactsReady = plan.artifactCount > 0
-    && plan.artifacts.every((artifact) => artifact.status === "cached");
-  const activeMatches = active?.model?.id === manifest.id;
-
-  return {
-    manifest,
-    plan,
-    active,
-    modelsDir: layout.modelsDir,
-    modelDir: layout.modelDir,
-    activeModelPath: activeModelPath(layout.modelsDir),
-    status: activeMatches && artifactsReady
-      ? "loaded"
-      : artifactsReady
-        ? "downloaded"
-        : "missing"
-  };
-}
-
-export async function bootstrapAndLoadLocalPredictor(options = {}) {
-  const manifest = options.manifest
-    ?? await loadModelManifest(options.modelId ?? LOCAL_PREDICTOR_MODEL_ID);
-  const result = await bootstrapModel(manifest, {
-    modelsDir: options.modelsDir ?? defaultModelsDir(),
-    allowNetwork: true,
-    fetchImpl: options.fetchImpl,
-    onDownloadProgress: options.onDownloadProgress
-  });
-  const active = {
-    schemaVersion: 1,
-    generatedAt: new Date().toISOString(),
-    status: "loaded",
-    model: result.model,
-    modelDir: result.modelDir,
-    lockPath: result.lockPath,
-    artifacts: result.artifacts.map((artifact) => ({
-      path: artifact.path,
-      targetPath: artifact.targetPath,
-      sha256: artifact.sha256,
-      sizeBytes: artifact.sizeBytes
-    }))
-  };
-
-  const path = activeModelPath(result.modelsDir);
-  await mkdir(result.modelsDir, { recursive: true });
-  await writeFile(path, `${JSON.stringify(active, null, 2)}\n`, "utf8");
-
-  return {
-    ...result,
-    active,
-    activeModelPath: path,
-    loaded: true
-  };
-}
+export const LOCAL_PREDICTOR_MODELFILE = "Modelfile.sancho-mistral";
 
 export function localPredictorRunnerSettings(options = {}) {
   return {
@@ -89,36 +24,51 @@ export function localPredictorRunnerSettings(options = {}) {
   };
 }
 
-export async function ensureLocalPredictorOllamaModel(options = {}) {
-  const state = options.state ?? await getLocalPredictorState(options);
-  if (state.status !== "loaded" && state.status !== "downloaded") {
-    throw new Error("Local predictor model is not downloaded yet.");
-  }
-
-  const modelPath = resolveLocalPredictorArtifactPath(state);
-  await access(modelPath);
-
+export async function getLocalPredictorState(options = {}) {
   const modelName = options.modelName ?? LOCAL_PREDICTOR_OLLAMA_MODEL;
   const ollamaExecutable = options.ollamaExecutable ?? process.env.SANCHO_OLLAMA_BIN ?? "ollama";
+  const exists = await ollamaModelExists(ollamaExecutable, modelName, options);
+  return {
+    manifest: { id: LOCAL_PREDICTOR_MODEL_ID, name: "Mistral 3 3.8B" },
+    plan: { artifactCount: 0, artifacts: [] },
+    active: exists ? { model: { id: LOCAL_PREDICTOR_MODEL_ID } } : undefined,
+    modelsDir: defaultModelsDir(),
+    modelDir: defaultModelsDir(),
+    activeModelPath: activeModelPath(defaultModelsDir()),
+    status: exists ? "loaded" : "missing"
+  };
+}
+
+export async function ensureLocalPredictorOllamaModel(options = {}) {
+  const modelName = options.modelName ?? LOCAL_PREDICTOR_OLLAMA_MODEL;
+  const sourceModel = LOCAL_PREDICTOR_OLLAMA_SOURCE;
+  const ollamaExecutable = options.ollamaExecutable ?? process.env.SANCHO_OLLAMA_BIN ?? "ollama";
+
+  const sourceExists = await ollamaModelExists(ollamaExecutable, sourceModel, options);
+  if (!sourceExists) {
+    throw new Error(
+      `Base model ${sourceModel} is not available. Run: ollama pull ${sourceModel}`
+    );
+  }
+
   const exists = !options.recreate && await ollamaModelExists(ollamaExecutable, modelName, options);
   if (exists) {
     return {
       modelName,
-      modelPath,
       created: false,
       runner: localPredictorRunnerSettings({ modelName })
     };
   }
 
-  const modelFilePath = join(state.modelDir, LOCAL_PREDICTOR_MODELFILE);
-  await writeFile(modelFilePath, renderOllamaModelFile(modelPath), "utf8");
+  const modelFilePath = join(defaultModelsDir(), LOCAL_PREDICTOR_MODELFILE);
+  await mkdir(defaultModelsDir(), { recursive: true });
+  await writeFile(modelFilePath, renderOllamaModelFile(null), "utf8");
   await execFilePromise(ollamaExecutable, ["create", modelName, "-f", modelFilePath], {
     timeoutMs: options.timeoutMs ?? 120000
   });
 
   return {
     modelName,
-    modelPath,
     modelFilePath,
     created: true,
     runner: localPredictorRunnerSettings({ modelName })
@@ -153,18 +103,20 @@ function resolveLocalPredictorArtifactPath(state) {
 }
 
 function renderOllamaModelFile(modelPath) {
+  if (modelPath) {
+    return [
+      `FROM ${JSON.stringify(modelPath)}`,
+      "PARAMETER temperature 0",
+      "PARAMETER num_predict 160",
+      "SYSTEM \"你是中文输入法候选重排器。只输出 JSON，不要解释。\"",
+      ""
+    ].join("\n");
+  }
   return [
-    `FROM ${JSON.stringify(modelPath)}`,
-    "TEMPLATE \"\"\"{{ if .System }}<|im_start|>system",
-    "{{ .System }}<|im_end|>",
-    "{{ end }}{{ if .Prompt }}<|im_start|>user",
-    "{{ .Prompt }}<|im_end|>",
-    "<|im_start|>assistant",
-    "{{ end }}{{ .Response }}{{ if .Response }}<|im_end|>{{ end }}\"\"\"",
-    "PARAMETER stop <|im_end|>",
-    "PARAMETER stop <|endoftext|>",
+    `FROM ${LOCAL_PREDICTOR_OLLAMA_SOURCE}`,
     "PARAMETER temperature 0",
     "PARAMETER num_predict 160",
+    "PARAMETER num_ctx 512",
     "SYSTEM \"你是中文输入法候选重排器。只输出 JSON，不要解释。\"",
     ""
   ].join("\n");

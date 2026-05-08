@@ -1,144 +1,102 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import test from "node:test";
 
 import {
-  bootstrapAndLoadLocalPredictor,
   ensureLocalPredictorOllamaModel,
-  getLocalPredictorState
+  getLocalPredictorState,
+  LOCAL_PREDICTOR_OLLAMA_MODEL,
+  LOCAL_PREDICTOR_OLLAMA_SOURCE
 } from "../src/model-runtime.js";
 
-test("bootstraps a local predictor artifact and marks it active", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "sancho-menubar-model-"));
-  const sourcePath = join(directory, "source.gguf");
-  const content = Buffer.from("fixture local model");
-  const sha256 = createHash("sha256").update(content).digest("hex");
-  const modelsDir = join(directory, "models");
-  const manifest = {
-    schemaVersion: 1,
-    id: "fixture-local-predictor",
-    name: "Fixture Local Predictor",
-    role: "local-realtime-predictor",
-    source: {
-      type: "fixture",
-      license: "Apache-2.0"
-    },
-    storage: {
-      directory: "fixture-local-predictor"
-    },
-    artifacts: [
-      {
-        path: "model.gguf",
-        url: pathToFileURL(sourcePath).href,
-        sha256,
-        sizeBytes: content.length
-      }
-    ]
-  };
+test("getLocalPredictorState reports loaded when sancho model exists", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "sancho-menubar-state-"));
+  const callsPath = join(directory, "ollama-calls.log");
+  const fakeOllamaPath = join(directory, "fake-ollama.cjs");
 
   try {
-    await writeFile(sourcePath, content);
+    await writeFile(fakeOllamaPath, [
+      "#!/usr/bin/env node",
+      "const { appendFileSync } = require('node:fs');",
+      `appendFileSync(${JSON.stringify(callsPath)}, process.argv.slice(2).join(' ') + '\\n');`,
+      "process.exit(0);", // show succeeds → model exists
+      ""
+    ].join("\n"), "utf8");
+    await chmod(fakeOllamaPath, 0o755);
 
-    const before = await getLocalPredictorState({ manifest, modelsDir });
-    assert.equal(before.status, "missing");
-
-    const progressEvents = [];
-    const result = await bootstrapAndLoadLocalPredictor({
-      manifest,
-      modelsDir,
-      onDownloadProgress: (progress) => {
-        progressEvents.push(progress);
-      }
+    const state = await getLocalPredictorState({
+      ollamaExecutable: fakeOllamaPath,
+      modelName: "sancho-mistral-3b:latest"
     });
-    assert.equal(result.loaded, true);
-    assert.equal(result.artifacts[0].status, "downloaded");
-    assert.equal(progressEvents.at(-1).percent, 1);
 
-    const active = JSON.parse(await readFile(result.activeModelPath, "utf8"));
-    assert.equal(active.status, "loaded");
-    assert.equal(active.model.id, "fixture-local-predictor");
-
-    const after = await getLocalPredictorState({ manifest, modelsDir });
-    assert.equal(after.status, "loaded");
+    assert.equal(state.status, "loaded");
+    assert.equal(state.manifest.id, "ministral-3-3b");
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
 });
 
-test("registers a loaded GGUF model with Ollama", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "sancho-menubar-ollama-"));
-  const modelsDir = join(directory, "models");
-  const modelDir = join(modelsDir, "fixture-local-predictor");
-  const modelPath = join(modelDir, "model.gguf");
-  const content = Buffer.from("model");
-  const sha256 = createHash("sha256").update(content).digest("hex");
-  const activePath = join(modelsDir, "active-model.json");
+test("getLocalPredictorState reports missing when model not found", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "sancho-menubar-missing-"));
   const callsPath = join(directory, "ollama-calls.log");
   const fakeOllamaPath = join(directory, "fake-ollama.cjs");
-  const manifest = {
-    schemaVersion: 1,
-    id: "fixture-local-predictor",
-    name: "Fixture Local Predictor",
-    role: "local-realtime-predictor",
-    storage: {
-      directory: "fixture-local-predictor"
-    },
-    source: {
-      type: "fixture",
-      license: "Apache-2.0"
-    },
-    artifacts: [
-      {
-        path: "model.gguf",
-        sha256,
-        sizeBytes: content.length
-      }
-    ]
-  };
 
   try {
-    await mkdir(modelDir, { recursive: true });
-    await writeFile(modelPath, content);
-    await writeFile(activePath, `${JSON.stringify({
-      schemaVersion: 1,
-      status: "loaded",
-      model: {
-        id: "fixture-local-predictor"
-      },
-      modelDir,
-      artifacts: [
-        {
-          path: "model.gguf",
-          targetPath: modelPath
-        }
-      ]
-    })}\n`, "utf8");
     await writeFile(fakeOllamaPath, [
       "#!/usr/bin/env node",
       "const { appendFileSync } = require('node:fs');",
       `appendFileSync(${JSON.stringify(callsPath)}, process.argv.slice(2).join(' ') + '\\n');`,
-      "if (process.argv[2] === 'show') process.exit(1);",
+      "process.exit(1);", // show fails → model missing
+      ""
+    ].join("\n"), "utf8");
+    await chmod(fakeOllamaPath, 0o755);
+
+    const state = await getLocalPredictorState({
+      ollamaExecutable: fakeOllamaPath,
+      modelName: "nonexistent:latest"
+    });
+
+    assert.equal(state.status, "missing");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("ensureLocalPredictorOllamaModel creates sancho model from source", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "sancho-menubar-create-"));
+  const callsPath = join(directory, "ollama-calls.log");
+  const fakeOllamaPath = join(directory, "fake-ollama.cjs");
+
+  try {
+    await writeFile(fakeOllamaPath, [
+      "#!/usr/bin/env node",
+      "const { appendFileSync } = require('node:fs');",
+      `appendFileSync(${JSON.stringify(callsPath)}, process.argv.slice(2).join(' ') + '\\n');`,
+      // First call is "show source-model" → succeed (source exists)
+      // Second call is "show sancho-model" → fail (sancho not created yet)
+      // Third call is "create sancho-model"
+      "let count = +(require('node:fs').readFileSync(" + JSON.stringify(callsPath) + ", 'utf8').split('\\n').filter(Boolean).length || '0');",
+      "if (process.argv[2] === 'show' && process.argv[3] === '" + LOCAL_PREDICTOR_OLLAMA_MODEL + "') process.exit(1);",
       "process.exit(0);",
       ""
     ].join("\n"), "utf8");
     await chmod(fakeOllamaPath, 0o755);
 
-    const state = await getLocalPredictorState({ manifest, modelsDir });
     const result = await ensureLocalPredictorOllamaModel({
-      state,
       ollamaExecutable: fakeOllamaPath,
-      modelName: "sancho-fixture:latest"
+      recreate: true
     });
 
     assert.equal(result.created, true);
+    assert.equal(result.modelName, LOCAL_PREDICTOR_OLLAMA_MODEL);
     assert.equal(result.runner.provider, "ollama");
-    assert.equal(result.runner.ollamaModel, "sancho-fixture:latest");
-    assert.match(await readFile(join(modelDir, "Modelfile.sancho"), "utf8"), /FROM/);
-    assert.match(await readFile(callsPath, "utf8"), /create sancho-fixture:latest -f/);
+    assert.equal(result.runner.ollamaModel, LOCAL_PREDICTOR_OLLAMA_MODEL);
+
+    const calls = await readFile(callsPath, "utf8");
+    assert.ok(calls.includes(`show ${LOCAL_PREDICTOR_OLLAMA_SOURCE}`));
+    assert.ok(calls.includes(`create ${LOCAL_PREDICTOR_OLLAMA_MODEL} -f`));
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

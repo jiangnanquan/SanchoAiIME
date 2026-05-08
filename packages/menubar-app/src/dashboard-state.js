@@ -308,12 +308,12 @@ async function readModelState(options) {
       error,
       modelDir: "",
       manifest: {
-        id: "qwen2.5-0.5b-instruct-q4_k_m",
-        name: "Qwen2.5-0.5B-Instruct GGUF Q4_K_M",
+        id: "ministral-3-3b",
+        name: "Mistral 3 3.8B",
         role: "local-realtime-predictor",
         source: {
-          type: "huggingface",
-          repository: "lmstudio-community/Qwen2.5-0.5B-Instruct-GGUF",
+          type: "ollama",
+          repository: "ministral-3:3b",
           license: "Apache-2.0"
         },
         artifacts: [],

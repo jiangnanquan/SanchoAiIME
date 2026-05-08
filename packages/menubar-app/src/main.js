@@ -30,7 +30,6 @@ import {
 } from "./deepseek-credentials.js";
 import { createMenubarTranslator } from "./i18n.js";
 import {
-  bootstrapAndLoadLocalPredictor,
   ensureLocalPredictorOllamaModel,
   getLocalPredictorState
 } from "./model-runtime.js";
@@ -500,18 +499,15 @@ async function runModelDownload() {
       detail: "",
       percent: 0
     });
-    const result = await bootstrapAndLoadLocalPredictor({
-      onDownloadProgress: (progress) => {
-        updateModelProgressWindow({
-          status: translator.t("modelDownloadDownloading"),
-          detail: modelProgressDetail(progress),
-          percent: progress.percent
-        });
-      }
+    updateModelProgressWindow({
+      status: translator.t("modelDownloadDownloading"),
+      detail: translator.t("modelDownloadActivating"),
+      percent: 0.5
     });
+    const result = await ensureLocalPredictorOllamaModel({ recreate: true });
     updateModelProgressWindow({
       status: translator.t("modelDownloadRegistering"),
-      detail: result.modelDir,
+      detail: result.modelName,
       percent: 1
     });
     await ensureLocalPredictorOllamaModel({ recreate: true });
