@@ -9,6 +9,7 @@ import { parseCustomPhraseText } from "@sancho-ai-ime/quick-dictionary";
 
 import { getLocalPredictorState } from "./model-runtime.js";
 import { macCustomPhrasePath } from "./platform.js";
+import { recordCommit, recordPrediction } from "./telemetry.js";
 import {
   createAsyncPredictionRunner,
   normalizeRunnerPrediction
@@ -56,6 +57,14 @@ async function logCommits(commits, logPath) {
     .map((line) => `${new Date().toISOString()}\t${line.trim()}\n`)
     .join("");
   await appendFile(logPath, lines, "utf8").catch(() => {});
+
+  for (const commitText of commits
+    .replace(/[\r\n]+/g, "\n")
+    .split("\n")
+    .filter((line) => line.trim())
+    .map((line) => line.trim())) {
+    recordCommit({ text: commitText, code: CODE_HISTORY.at(-1) });
+  }
 
   clearTimeout(idleTimer);
   idleTimer = setTimeout(() => void onTypingIdle(logPath), 4000);
@@ -317,6 +326,15 @@ class LocalPredictorService {
     if (!["disabled", "code-too-short"].includes(prediction.mode)) {
       this.runner.schedule(input);
     }
+    recordPrediction({
+      code: input.code,
+      candN: (Array.isArray(input.candidates) ? input.candidates : []).length,
+      runner: runnerPrediction?.mode ?? prediction.mode,
+      latMs: null,
+      cacheHit: Boolean(runnerPrediction),
+      rankN: prediction.rank?.length ?? 0,
+      suggN: prediction.suggestions?.length ?? 0
+    });
     return prediction;
   }
 

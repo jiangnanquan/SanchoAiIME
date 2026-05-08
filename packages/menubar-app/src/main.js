@@ -61,6 +61,7 @@ import {
 } from "./rime-settings.js";
 import { suggestRimeSkin } from "./rime-skin-assistant.js";
 import { renderRimeSettingsHtml } from "./settings-window.js";
+import { initTelemetry } from "./telemetry.js";
 
 let tray;
 let dashboardWindow;
@@ -99,6 +100,7 @@ app.whenReady().then(async () => {
   }
 
   app.setName("SanchoAiIME");
+  initTelemetry();
   if (process.platform === "darwin") {
     app.dock.hide();
   }
