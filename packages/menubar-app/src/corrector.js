@@ -1,27 +1,9 @@
-import { callDeepSeekChat } from "@sancho-ai-ime/cloud-teacher";
+import { createFlashTask } from "@sancho-ai-ime/cloud-teacher";
 
 const MIN_CHARS_FOR_CHECK = 30;
 
-export async function checkTypos(options = {}) {
-  const text = options.text;
-  if (!text || text.length < MIN_CHARS_FOR_CHECK) {
-    return { corrections: [] };
-  }
-
-  const response = await callDeepSeekChat({
-    message: buildTypoCheckPrompt(text),
-    system: buildTypoCheckSystem(),
-    temperature: 0.1,
-    maxTokens: 600,
-    allowNetwork: true,
-    timeoutMs: 30000
-  });
-
-  return parseTypoCorrections(response.content, text);
-}
-
-function buildTypoCheckSystem() {
-  return [
+const checkTyposTask = createFlashTask({
+  system: [
     "你是中文错别字检测器。只输出 JSON，不要解释。",
     "",
     "规则：",
@@ -30,49 +12,45 @@ function buildTypoCheckSystem() {
     "3. 人名、地名、技术术语、英文不标记",
     "4. 明显的拼音输入同音错误（在→再、的→得、码→吗、超时→超市）优先",
     "5. 最多标记 5 处"
-  ].join("\n");
-}
+  ].join("\n"),
 
-function buildTypoCheckPrompt(text) {
-  return [
-    "检查以下文本中的疑似错别字：",
-    "",
-    text,
-    "",
-    "输出 JSON：",
-    '{"corrections":[{"original":"原文","suggested":"建议","reason":"理由"}]}',
-    "如果没有发现错别字，输出 {\"corrections\":[]}"
-  ].join("\n");
-}
+  buildPrompt(text) {
+    return [
+      "检查以下文本中的疑似错别字：",
+      "",
+      text,
+      "",
+      "输出 JSON：",
+      '{"corrections":[{"original":"原文","suggested":"建议","reason":"理由"}]}',
+      "如果没有发现错别字，输出 {\"corrections\":[]}"
+    ].join("\n");
+  },
 
-function parseTypoCorrections(raw, originalText) {
-  try {
-    const json = JSON.parse(raw);
-    if (Array.isArray(json.corrections)) {
-      return {
-        corrections: json.corrections
-          .filter((c) =>
-            c.original && c.suggested &&
-            c.original !== c.suggested &&
-            originalText.includes(c.original)
-          )
-          .slice(0, 5)
-      };
-    }
-  } catch {
-    const match = String(raw).match(/\{[\s\S]*\}/);
-    if (match) {
-      try {
-        const json = JSON.parse(match[0]);
-        if (Array.isArray(json.corrections)) {
-          return {
-            corrections: json.corrections
-              .filter((c) => c.original && c.suggested)
-              .slice(0, 5)
-          };
-        }
-      } catch { /* fall through */ }
-    }
+  parseResponse(json, originalText) {
+    const corrections = (Array.isArray(json.corrections) ? json.corrections : [])
+      .filter((c) =>
+        c.original && c.suggested &&
+        c.original !== c.suggested &&
+        originalText.includes(c.original)
+      )
+      .slice(0, 5);
+    return { corrections };
+  },
+
+  temperature: 0.1,
+  maxTokens: 600,
+  timeoutMs: 30000
+});
+
+export async function checkTypos(options = {}) {
+  const text = options.text;
+  if (!text || text.length < MIN_CHARS_FOR_CHECK) {
+    return { corrections: [] };
   }
-  return { corrections: [] };
+  try {
+    const result = await checkTyposTask(text);
+    return { corrections: result.corrections };
+  } catch {
+    return { corrections: [] };
+  }
 }

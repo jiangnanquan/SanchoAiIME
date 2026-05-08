@@ -14,15 +14,7 @@ import {
 } from "../src/index.js";
 import { runCli } from "../src/cli.js";
 
-test("loads the built-in Qwen baseline manifest without artifacts", async () => {
-  const manifest = await loadModelManifest("qwen3.5-0.8b");
-
-  assert.equal(manifest.id, "qwen3.5-0.8b");
-  assert.equal(manifest.source.repository, "Qwen/Qwen3.5-0.8B");
-  assert.deepEqual(manifest.artifacts, []);
-});
-
-test("loads the downloadable Qwen GGUF manifest with verified artifact metadata", async () => {
+test("loads the Qwen2.5-0.5B GGUF manifest with verified artifact metadata", async () => {
   const manifest = await loadModelManifest("qwen2.5-0.5b-instruct-q4_k_m");
 
   assert.equal(manifest.source.repository, "lmstudio-community/Qwen2.5-0.5B-Instruct-GGUF");
@@ -202,15 +194,15 @@ test("CLI prints model bootstrap plans as JSON", async () => {
         "models",
         "plan",
         "--model",
-        "qwen3.5-0.8b",
+        "qwen2.5-0.5b-instruct-q4_k_m",
         "--models-dir",
         directory
       ], { stdout }),
       0
     );
     const plan = JSON.parse(stdout.text);
-    assert.equal(plan.model.id, "qwen3.5-0.8b");
-    assert.equal(plan.artifactCount, 0);
+    assert.equal(plan.model.id, "qwen2.5-0.5b-instruct-q4_k_m");
+    assert.equal(plan.artifactCount, 1);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

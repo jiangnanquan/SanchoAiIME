@@ -1,31 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { isAbsolute, normalize, posix } from "node:path";
 
-export const QWEN35_08B_MODEL_ID = "qwen3.5-0.8b";
 export const QWEN25_05B_INSTRUCT_GGUF_MODEL_ID = "qwen2.5-0.5b-instruct-q4_k_m";
-
-const BUILTIN_QWEN35_08B = {
-  schemaVersion: 1,
-  id: QWEN35_08B_MODEL_ID,
-  name: "Qwen3.5-0.8B",
-  role: "local-realtime-predictor",
-  source: {
-    type: "huggingface",
-    repository: "Qwen/Qwen3.5-0.8B",
-    url: "https://huggingface.co/Qwen/Qwen3.5-0.8B",
-    license: "Apache-2.0"
-  },
-  storage: {
-    directory: QWEN35_08B_MODEL_ID
-  },
-  artifacts: [],
-  benchmark: {
-    prompt: "Sancho local predictor health check. Reply with OK.",
-    iterations: 3,
-    warmup: 1,
-    timeoutMs: 30000
-  }
-};
 
 const BUILTIN_QWEN25_05B_INSTRUCT_GGUF = {
   schemaVersion: 1,
@@ -60,11 +36,10 @@ const BUILTIN_QWEN25_05B_INSTRUCT_GGUF = {
 };
 
 export const BUILTIN_MODEL_MANIFESTS = Object.freeze({
-  [QWEN35_08B_MODEL_ID]: normalizeModelManifest(BUILTIN_QWEN35_08B),
   [QWEN25_05B_INSTRUCT_GGUF_MODEL_ID]: normalizeModelManifest(BUILTIN_QWEN25_05B_INSTRUCT_GGUF)
 });
 
-export async function loadModelManifest(identifier = QWEN35_08B_MODEL_ID) {
+export async function loadModelManifest(identifier = QWEN25_05B_INSTRUCT_GGUF_MODEL_ID) {
   if (BUILTIN_MODEL_MANIFESTS[identifier]) {
     return clone(BUILTIN_MODEL_MANIFESTS[identifier]);
   }

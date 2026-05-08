@@ -922,7 +922,7 @@ function normalizeRunnerSettings(input = {}) {
   const raw = input ?? {};
   const provider = String(raw.provider ?? "none").trim().toLowerCase();
   return {
-    provider: ["none", "http", "ollama"].includes(provider) ? provider : "none",
+    provider: ["none", "http", "ollama", "deepseek-flash"].includes(provider) ? provider : "none",
     endpoint: cleanOptionalString(raw.endpoint),
     ollamaModel: cleanOptionalString(raw.ollamaModel ?? raw.ollama_model),
     ollamaEndpoint: cleanOptionalString(raw.ollamaEndpoint ?? raw.ollama_endpoint),
@@ -963,6 +963,15 @@ function runnerStatusFromSettings(settings, options) {
       configured: Boolean(runner.ollamaModel),
       endpoint: runner.ollamaEndpoint,
       model: runner.ollamaModel,
+      timeoutMs: runner.timeoutMs
+    };
+  }
+  if (runner.provider === "deepseek-flash") {
+    return {
+      provider: "deepseek-flash",
+      enabled: true,
+      configured: true,
+      model: "deepseek-v4-flash",
       timeoutMs: runner.timeoutMs
     };
   }

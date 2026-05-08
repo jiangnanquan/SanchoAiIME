@@ -1,3 +1,7 @@
+import { readFile, writeFile } from "node:fs/promises";
+
+import { analyzeLexicon } from "@sancho-ai-ime/cloud-teacher";
+
 import {
   SUPPORTED_FORMATS,
   importExternalLexiconFile,
@@ -13,6 +17,7 @@ const HELP_ZH = `用法：
   sancho-lexicon-importer external-preview --adapter imewlconverter --source-format <format> --converted-format <format> --input <path> [--tool <path>] -- <adapter args>
   sancho-lexicon-importer external-import --adapter imewlconverter --source-format <format> --converted-format <format> --input <path> --output <path> [--tool <path>] [--rollback-dir <path>] [--dry-run] -- <adapter args>
   sancho-lexicon-importer rollback --output <path> --rollback-id <id> [--rollback-dir <path>] [--dry-run]
+  sancho-lexicon-importer analyze --input <import-output.json> --output <path> [--batch-size n]
 
 格式：${SUPPORTED_FORMATS.join(", ")}
 
@@ -26,6 +31,7 @@ const HELP_EN = `Usage:
   sancho-lexicon-importer external-preview --adapter imewlconverter --source-format <format> --converted-format <format> --input <path> [--tool <path>] -- <adapter args>
   sancho-lexicon-importer external-import --adapter imewlconverter --source-format <format> --converted-format <format> --input <path> --output <path> [--tool <path>] [--rollback-dir <path>] [--dry-run] -- <adapter args>
   sancho-lexicon-importer rollback --output <path> --rollback-id <id> [--rollback-dir <path>] [--dry-run]
+  sancho-lexicon-importer analyze --input <import-output.json> --output <path> [--batch-size n]
 
 Formats: ${SUPPORTED_FORMATS.join(", ")}
 
@@ -80,6 +86,47 @@ export async function runCli(argv, streams = {}) {
       requireOutput: true
     }, streams));
     stdout.write(`${JSON.stringify(summarizeImportResult(result), null, 2)}\n`);
+    return 0;
+  }
+
+  if (command === "analyze") {
+    rejectPassthroughArgs(command, passthroughArgs);
+    if (!options.input) {
+      throw new Error("Missing required option --input.");
+    }
+    if (!options.output) {
+      throw new Error("Missing required option --output.");
+    }
+    const importDoc = JSON.parse(await readFile(options.input, "utf8"));
+    const entries = Array.isArray(importDoc.entries) ? importDoc.entries : [];
+    if (entries.length === 0) {
+      throw new Error("Import file contains no entries to analyze.");
+    }
+    const result = await analyzeLexicon(entries, {
+      batchSize: options["batch-size"] ? Number(options["batch-size"]) : undefined,
+      env: streams.env
+    });
+    const output = {
+      schema: "sancho.lexicon.analysis.v1",
+      generatedAt: new Date().toISOString(),
+      source: options.input,
+      summary: {
+        totalEntries: entries.length,
+        analyzed: result.analyzed,
+        keepCount: result.entries.filter((e) => e.quality === "keep").length,
+        reviewCount: result.entries.filter((e) => e.quality === "review").length,
+        mergeCount: result.entries.filter((e) => e.quality === "merge").length,
+        dropCount: result.entries.filter((e) => e.quality === "drop").length,
+        mergeSuggestions: result.merge_suggestions.length
+      },
+      entries: result.entries,
+      merge_suggestions: result.merge_suggestions
+    };
+    await writeFile(options.output, `${JSON.stringify(output, null, 2)}\n`, "utf8");
+    stdout.write(`${JSON.stringify({
+      outputPath: options.output,
+      summary: output.summary
+    }, null, 2)}\n`);
     return 0;
   }
 

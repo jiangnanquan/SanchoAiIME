@@ -15,6 +15,9 @@
     "src/",
     "README.md"
   ],
+  "dependencies": {
+    "@sancho-ai-ime/cloud-teacher": "*"
+  },
   "engines": {
     "node": ">=22"
   }

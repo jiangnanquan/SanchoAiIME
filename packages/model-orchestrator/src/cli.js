@@ -5,7 +5,7 @@ import {
 } from "./bootstrap.js";
 import {
   loadModelManifest,
-  QWEN35_08B_MODEL_ID
+  QWEN25_05B_INSTRUCT_GGUF_MODEL_ID
 } from "./manifest.js";
 import {
   formatBenchmarkResult,
@@ -19,26 +19,26 @@ import {
 } from "./maintenance.js";
 
 const HELP_ZH = `用法：
-  sancho-model-orchestrator models plan [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path]
-  sancho-model-orchestrator models bootstrap [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path] [--dry-run] [--allow-network] [--allow-unverified]
-  sancho-model-orchestrator benchmark run [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path] [--runner command] [--iterations n] [--warmup n] [--timeout-ms n] [--prompt text] [-- <runner args>]
-  sancho-model-orchestrator maintenance audit [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path]
-  sancho-model-orchestrator maintenance snapshot [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path] [--snapshot-id id] [--snapshot-dir path]
-  sancho-model-orchestrator maintenance diff [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path] --snapshot-id id [--snapshot-dir path]
-  sancho-model-orchestrator maintenance rollback [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path] --snapshot-id id [--snapshot-dir path] [--dry-run]
+  sancho-model-orchestrator models plan [--model qwen2.5-0.5b-instruct-q4_k_m | --manifest manifest.json] [--models-dir path]
+  sancho-model-orchestrator models bootstrap [--model qwen2.5-0.5b-instruct-q4_k_m | --manifest manifest.json] [--models-dir path] [--dry-run] [--allow-network] [--allow-unverified]
+  sancho-model-orchestrator benchmark run [--model qwen2.5-0.5b-instruct-q4_k_m | --manifest manifest.json] [--models-dir path] [--runner command] [--iterations n] [--warmup n] [--timeout-ms n] [--prompt text] [-- <runner args>]
+  sancho-model-orchestrator maintenance audit [--model qwen2.5-0.5b-instruct-q4_k_m | --manifest manifest.json] [--models-dir path]
+  sancho-model-orchestrator maintenance snapshot [--model qwen2.5-0.5b-instruct-q4_k_m | --manifest manifest.json] [--models-dir path] [--snapshot-id id] [--snapshot-dir path]
+  sancho-model-orchestrator maintenance diff [--model qwen2.5-0.5b-instruct-q4_k_m | --manifest manifest.json] [--models-dir path] --snapshot-id id [--snapshot-dir path]
+  sancho-model-orchestrator maintenance rollback [--model qwen2.5-0.5b-instruct-q4_k_m | --manifest manifest.json] [--models-dir path] --snapshot-id id [--snapshot-dir path] [--dry-run]
 
 模型文件会写入 SANCHO_MODEL_DIR、SANCHO_RUNTIME_DIR/models 或平台默认运行目录，
 默认不会写入被 git 跟踪的源码路径。
 `;
 
 const HELP_EN = `Usage:
-  sancho-model-orchestrator models plan [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path]
-  sancho-model-orchestrator models bootstrap [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path] [--dry-run] [--allow-network] [--allow-unverified]
-  sancho-model-orchestrator benchmark run [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path] [--runner command] [--iterations n] [--warmup n] [--timeout-ms n] [--prompt text] [-- <runner args>]
-  sancho-model-orchestrator maintenance audit [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path]
-  sancho-model-orchestrator maintenance snapshot [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path] [--snapshot-id id] [--snapshot-dir path]
-  sancho-model-orchestrator maintenance diff [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path] --snapshot-id id [--snapshot-dir path]
-  sancho-model-orchestrator maintenance rollback [--model qwen3.5-0.8b | --manifest manifest.json] [--models-dir path] --snapshot-id id [--snapshot-dir path] [--dry-run]
+  sancho-model-orchestrator models plan [--model qwen2.5-0.5b-instruct-q4_k_m | --manifest manifest.json] [--models-dir path]
+  sancho-model-orchestrator models bootstrap [--model qwen2.5-0.5b-instruct-q4_k_m | --manifest manifest.json] [--models-dir path] [--dry-run] [--allow-network] [--allow-unverified]
+  sancho-model-orchestrator benchmark run [--model qwen2.5-0.5b-instruct-q4_k_m | --manifest manifest.json] [--models-dir path] [--runner command] [--iterations n] [--warmup n] [--timeout-ms n] [--prompt text] [-- <runner args>]
+  sancho-model-orchestrator maintenance audit [--model qwen2.5-0.5b-instruct-q4_k_m | --manifest manifest.json] [--models-dir path]
+  sancho-model-orchestrator maintenance snapshot [--model qwen2.5-0.5b-instruct-q4_k_m | --manifest manifest.json] [--models-dir path] [--snapshot-id id] [--snapshot-dir path]
+  sancho-model-orchestrator maintenance diff [--model qwen2.5-0.5b-instruct-q4_k_m | --manifest manifest.json] [--models-dir path] --snapshot-id id [--snapshot-dir path]
+  sancho-model-orchestrator maintenance rollback [--model qwen2.5-0.5b-instruct-q4_k_m | --manifest manifest.json] [--models-dir path] --snapshot-id id [--snapshot-dir path] [--dry-run]
 
 Model files are stored under SANCHO_MODEL_DIR, SANCHO_RUNTIME_DIR/models, or
 the platform default runtime model directory. They are never written into
@@ -163,7 +163,7 @@ async function loadManifestFromOptions(options) {
   if (options.model && options.manifest) {
     throw new Error("Use either --model or --manifest, not both.");
   }
-  return await loadModelManifest(options.manifest ?? options.model ?? QWEN35_08B_MODEL_ID);
+  return await loadModelManifest(options.manifest ?? options.model ?? QWEN25_05B_INSTRUCT_GGUF_MODEL_ID);
 }
 
 function parseOptions(args, settings = {}) {

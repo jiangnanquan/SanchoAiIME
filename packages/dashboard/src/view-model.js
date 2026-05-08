@@ -3,16 +3,16 @@ import { createTranslator } from "./i18n.js";
 export const DEFAULT_DASHBOARD_TITLE = "SanchoAiIME 控制台";
 
 const DEFAULT_MODEL_CARD = {
-  id: "qwen3.5-0.8b",
-  name: "Qwen3.5-0.8B",
+  id: "qwen2.5-0.5b-instruct-q4_k_m",
+  name: "Qwen2.5-0.5B-Instruct GGUF Q4_K_M",
   role: "local-realtime-predictor",
   status: "not-configured",
   source: {
     type: "huggingface",
-    repository: "Qwen/Qwen3.5-0.8B",
+    repository: "lmstudio-community/Qwen2.5-0.5B-Instruct-GGUF",
     license: "Apache-2.0"
   },
-  artifactCount: 0,
+  artifactCount: 1,
   benchmark: {
     iterations: 3,
     timeoutMs: 30000
@@ -220,13 +220,13 @@ export function createSampleDashboardInput(options = {}) {
     },
     models: [
       {
-        id: "qwen3.5-0.8b",
-        name: "Qwen3.5-0.8B",
+        id: "qwen2.5-0.5b-instruct-q4_k_m",
+        name: "Qwen2.5-0.5B-Instruct GGUF Q4_K_M",
         role: "local-realtime-predictor",
         status: "planned",
         source: {
           type: "huggingface",
-          repository: "Qwen/Qwen3.5-0.8B",
+          repository: "lmstudio-community/Qwen2.5-0.5B-Instruct-GGUF",
           license: "Apache-2.0"
         },
         artifacts: [],

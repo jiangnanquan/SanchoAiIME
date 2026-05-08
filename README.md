@@ -24,7 +24,7 @@ First launch: right-click → Open (ad-hoc signing requires Gatekeeper bypass).
 2. 添加/切换到 **鼠须管 / Squirrel** → 鼠须管菜单执行 **重新部署**
 3. 菜单栏打开 **输入法外观与行为** → 设置字体、候选数量、配色、英文标点等
 4. （可选）配置 **DeepSeek API Key** → 可使用 Flash 皮肤助手
-5. （可选）**下载本地小模型** → 一键下载 Qwen2.5-0.5B GGUF（约 398MB）
+5. （可选）**下载本地小模型** → 一键下载 Qwen2.5-0.5B GGUF（约 398MB，Ollama 推理）
 
 ---
 
@@ -41,17 +41,19 @@ First launch: right-click → Open (ad-hoc signing requires Gatekeeper bypass).
 | English punctuation | Toggle to use English punctuation in Chinese mode |
 | 中英混输 | 中文模式下直接输入英文，联想候选栏同时出现 EN 词和中文短语 |
 | Mixed input | Type English directly in Chinese mode, get both EN and CN candidates |
-| 本地小模型 / Local model | 一键下载 Qwen2.5-0.5B GGUF，SHA256 校验 |
+| 本地小模型 / Local model | 一键下载 Qwen2.5-0.5B GGUF（Ollama），SHA256 校验 |
+| DeepSeek Flash 预测 | 可选云端候选重排和下一词预测（需 Key） |
+| DeepSeek Flash cloud prediction | Optional cloud candidate reranking and next-word prediction (needs Key) |
 | Rime 皮肤 / Skin | 4 套预设 + 自定义编辑器 + DeepSeek Flash AI 生成 |
 | 快速字典 | marker 托管区同步 `custom_phrase.txt`，不覆盖用户手写 |
 | i18n | 简体中文（默认）/ English (via `SANCHO_LOCALE=en-US`) |
-| 词库导入 / Import | 搜狗/QQ 拼音/百度/Rime/macOS 等格式 |
+| 词库导入 / Import | 搜狗/QQ 拼音/百度/Rime/macOS 等格式 + Flash AI 分析 |
 | 发布工具链 / Release | release gate、SBOM、npm tarball、DMG + ZIP 打包 |
 
 ## 构建 / Build
 
 ```sh
-npm test                         # 101 tests
+npm test                         # 124 tests
 npm run release:check            # release gate
 npm run release:sbom             # SBOM generation
 npm run menubar:package:mac      # DMG packaging
@@ -105,10 +107,10 @@ SANCHO_LOCALE=en-US npm run menubar:dev
 ## 测试 / Tests
 
 ```sh
-npm test    # 101 tests
+npm test    # 124 tests
 ```
 
-覆盖：predictor-service（词库预测、英文联想、runner 合并）、dashboard view-model 与 HTML 渲染、quick-dictionary 解析与同步、model-orchestrator bootstrap 与 manifest、cloud-teacher DeepSeek CLI、lexicon-importer 导入与适配器、rime-settings 读写与部署、release gate 与 SBOM 生成。
+覆盖：predictor-service（词库预测、英文联想、Flash runner 合并）、dashboard view-model 与 HTML 渲染、quick-dictionary 解析与同步、model-orchestrator bootstrap 与 manifest、cloud-teacher DeepSeek CLI + flash-tasks + lexicon-analyzer、lexicon-importer 导入与适配器、rime-settings 读写与部署、release gate 与 SBOM 生成。
 
 ## 许可证 / License
 

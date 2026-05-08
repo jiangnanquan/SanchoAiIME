@@ -80,7 +80,7 @@ test("CLI can run a benchmark with a passthrough runner", async () => {
         "benchmark",
         "run",
         "--model",
-        "qwen3.5-0.8b",
+        "qwen2.5-0.5b-instruct-q4_k_m",
         "--models-dir",
         directory,
         "--runner",

@@ -39,7 +39,9 @@ export function renderRimeSettingsHtml(translator) {
     inlinePreedit: t("rimeSettingsInlinePreedit"),
     englishPunctuation: t("rimeSettingsEnglishPunctuation"),
     mixedInput: t("rimeSettingsMixedInput"),
+    flashPredictor: t("rimeSettingsFlashPredictor"),
     behaviorTitle: t("rimeSettingsBehaviorTitle"),
+    aiTitle: t("rimeSettingsAiTitle"),
     pageSize: t("rimeSettingsPageSize"),
     fontPoint: t("rimeSettingsFontPoint"),
     cornerRadius: t("rimeSettingsCornerRadius"),
@@ -655,6 +657,14 @@ export function renderRimeSettingsHtml(translator) {
         </div>
       </section>
 
+      <section>
+        <h2>${escapeHtml(labels.aiTitle)}</h2>
+        <div class="row">
+          <label for="flashPredictor">${escapeHtml(labels.flashPredictor)}</label>
+          <input id="flashPredictor" name="flashPredictor" type="checkbox">
+        </div>
+      </section>
+
       <div class="actions">
         <button class="primary" type="submit">${escapeHtml(labels.save)}</button>
         <button type="button" id="openDirectory">${escapeHtml(labels.openDirectory)}</button>
@@ -674,6 +684,7 @@ export function renderRimeSettingsHtml(translator) {
     const inlinePreedit = document.getElementById("inlinePreedit");
     const englishPunctuation = document.getElementById("englishPunctuation");
     const mixedInput = document.getElementById("mixedInput");
+    const flashPredictor = document.getElementById("flashPredictor");
     const fontPoint = document.getElementById("fontPoint");
     const fontPointValue = document.getElementById("fontPointValue");
     const cornerRadius = document.getElementById("cornerRadius");
@@ -762,6 +773,7 @@ export function renderRimeSettingsHtml(translator) {
       inlinePreedit.checked = settings.inlinePreedit;
       englishPunctuation.checked = settings.englishPunctuation === true;
       mixedInput.checked = settings.predictor?.mixedInput !== false;
+      flashPredictor.checked = settings.predictor?.flashPredictor === true;
       setSkinInputs(skinForScheme(settings.colorScheme, settings.customSkin));
       syncRangeOutputs();
     }
@@ -781,7 +793,7 @@ export function renderRimeSettingsHtml(translator) {
         cornerRadius: Number(cornerRadius.value),
         inlinePreedit: inlinePreedit.checked,
         englishPunctuation: englishPunctuation.checked,
-        predictor: { mixedInput: mixedInput.checked },
+        predictor: { mixedInput: mixedInput.checked, flashPredictor: flashPredictor.checked },
         customSkin: getSkinInputs()
       };
     }

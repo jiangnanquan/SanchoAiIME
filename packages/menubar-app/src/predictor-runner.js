@@ -1,5 +1,42 @@
+import { createFlashTask } from "@sancho-ai-ime/cloud-teacher";
+
 export const DEFAULT_RUNNER_TIMEOUT_MS = 8000;
 export const DEFAULT_OLLAMA_ENDPOINT = "http://127.0.0.1:11434/api/generate";
+const DEFAULT_FLASH_TIMEOUT_MS = 5000;
+
+const flashPredictTask = createFlashTask({
+  system: [
+    "你是中文输入法候选重排器。只输出 JSON，不要解释。",
+    "",
+    "根据拼音编码、最近输入历史和候选列表，返回最可能的候选重排和最多 2 个短语预测。",
+    "rank 只能使用候选列表里真实存在的文字；suggestions 可以为空。",
+    "suggestions 可以根据最近输入预测下一个词或短语。",
+    "必须尊重拼音读音；不确定时保持候选原顺序，不要把发音不匹配的候选提前。",
+    "",
+    "JSON 结构：",
+    '{"rank":[{"text":"真实候选","score":120}],"suggestions":[{"text":"真实预测","score":100,"comment":"AI"}]}'
+  ].join("\n"),
+
+  buildPrompt(input) {
+    const commits = input.commits || input.context || "";
+    return [
+      `拼音编码：${input.code}`,
+      `最近输入：${commits}`,
+      `候选：${(input.candidates ?? []).join(" | ")}`
+    ].join("\n");
+  },
+
+  parseResponse(json) {
+    return {
+      rank: (Array.isArray(json.rank) ? json.rank : []).filter((r) => r.text),
+      suggestions: (Array.isArray(json.suggestions) ? json.suggestions : []).filter((s) => s.text)
+    };
+  },
+
+  temperature: 0,
+  maxTokens: 200,
+  timeoutMs: DEFAULT_FLASH_TIMEOUT_MS
+});
 
 export function createAsyncPredictionRunner(options = {}) {
   const runner = createPredictionRunner(options);
@@ -29,6 +66,14 @@ export function createPredictionRunner(options = {}) {
       model: options.ollamaModel ?? env.SANCHO_OLLAMA_MODEL ?? env.SANCHO_PREDICTOR_OLLAMA_MODEL,
       fetchImpl: options.fetchImpl,
       timeoutMs: options.timeoutMs
+    });
+  }
+  if (provider === "deepseek-flash") {
+    return new FlashPredictionRunner({
+      model: options.flashModel ?? "deepseek-v4-flash",
+      fetchImpl: options.fetchImpl,
+      env: env,
+      timeoutMs: options.timeoutMs ?? DEFAULT_FLASH_TIMEOUT_MS
     });
   }
   return new DisabledPredictionRunner();
@@ -106,6 +151,106 @@ class CachedAsyncPredictionRunner {
       this.cache.delete(oldest);
     }
   }
+}
+
+class FlashPredictionRunner {
+  constructor(options = {}) {
+    this.model = options.model ?? "deepseek-v4-flash";
+    this.fetchImpl = options.fetchImpl;
+    this.env = options.env ?? process.env;
+    this.timeoutMs = options.timeoutMs ?? DEFAULT_FLASH_TIMEOUT_MS;
+    this.callCount = 0;
+    this.totalTokens = 0;
+    this.lastSuccessAt = undefined;
+    this.lastError = undefined;
+  }
+
+  get enabled() {
+    return true;
+  }
+
+  async predict(input = {}) {
+    const request = runnerRequest(input);
+    if (!request.code || !request.candidates.length) {
+      return undefined;
+    }
+
+    try {
+      const result = await flashPredictTask(request, {
+        fetchImpl: this.fetchImpl,
+        env: this.env,
+        timeoutMs: this.timeoutMs
+      });
+
+      this.callCount += 1;
+      this.totalTokens += result._meta?.usage?.total_tokens ?? 0;
+      this.lastSuccessAt = new Date();
+      this.lastError = undefined;
+
+      return sanitizeFlashPrediction(
+        normalizeRunnerPrediction(result, { mode: "deepseek-flash" }),
+        request
+      );
+    } catch (error) {
+      this.lastError = error;
+      return undefined;
+    }
+  }
+
+  status() {
+    return {
+      provider: "deepseek-flash",
+      enabled: this.enabled,
+      configured: true,
+      model: this.model,
+      timeoutMs: this.timeoutMs,
+      callCount: this.callCount,
+      totalTokens: this.totalTokens
+    };
+  }
+}
+
+function sanitizeFlashPrediction(prediction, request) {
+  if (!prediction) {
+    return undefined;
+  }
+  const candidateTexts = new Set(request.candidates);
+  const originalIndex = new Map(request.candidates.map((text, index) => [text, index]));
+  const placeholderTexts = new Set(["候选", "预测", "真实候选", "真实预测", "candidate", "prediction"]);
+  let rank = (prediction.rank ?? [])
+    .filter((row) => candidateTexts.has(row.text))
+    .map((row) => ({
+      ...row,
+      comment: aiComment(row.comment, "Flash 重排")
+    }));
+  if (rank.length > 0 && (originalIndex.get(rank[0].text) ?? 0) > 0) {
+    rank = [];
+  }
+  const seenSuggestions = new Set();
+  const suggestions = [];
+  for (const row of prediction.suggestions ?? []) {
+    if (
+      Array.from(row.text).length < 2
+      || placeholderTexts.has(row.text)
+      || candidateTexts.has(row.text)
+      || seenSuggestions.has(row.text)
+    ) {
+      continue;
+    }
+    seenSuggestions.add(row.text);
+    suggestions.push({
+      ...row,
+      comment: aiComment(row.comment, "Flash 预测")
+    });
+  }
+  if (rank.length === 0 && suggestions.length === 0) {
+    return undefined;
+  }
+  return {
+    ...prediction,
+    rank,
+    suggestions
+  };
 }
 
 class DisabledPredictionRunner {
@@ -386,7 +531,7 @@ function cleanCode(value) {
 
 function normalizeProvider(value) {
   const provider = String(value ?? "none").trim().toLowerCase();
-  if (["none", "http", "ollama"].includes(provider)) {
+  if (["none", "http", "ollama", "deepseek-flash"].includes(provider)) {
     return provider;
   }
   return "none";
