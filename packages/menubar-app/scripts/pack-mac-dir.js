@@ -7,6 +7,7 @@ import {
   copyFile,
   mkdtemp,
   mkdir,
+  readFile,
   rename,
   rm,
   writeFile
@@ -126,11 +127,14 @@ async function stageAsarInput(stagedAppDirectory) {
     recursive: true,
     force: true
   });
+  const appPkg = JSON.parse(
+    await readFile(join(packageDir, "package.json"), "utf8")
+  );
   await writeFile(
     join(stagedAppDirectory, "package.json"),
     JSON.stringify({
       name: "@sancho-ai-ime/menubar-app",
-      version: "0.1.0",
+      version: appPkg.version,
       private: true,
       type: "module",
       main: "src/main.js"
