@@ -285,7 +285,7 @@ function renderInputMethod(settings = {}, t) {
           </div>
           ${fieldRow(t("inputMethod.predictorRunner"), `<select id="im-predictor-runner" name="predictorRunner">${renderPredictorRunnerOptions(predictor.runner?.provider, t)}</select>`)}
           ${fieldRow(t("inputMethod.predictorHttpEndpoint"), `<input id="im-predictor-http-endpoint" name="predictorHttpEndpoint" type="text" value="${escapeAttribute(predictor.runner?.endpoint ?? "")}" placeholder="http://127.0.0.1:18841/predict">`)}
-          ${fieldRow(t("inputMethod.predictorOllamaModel"), `<input id="im-predictor-ollama-model" name="predictorOllamaModel" type="text" value="${escapeAttribute(predictor.runner?.model ?? "")}" placeholder="qwen2.5:0.5b">`)}
+          ${fieldRow(t("inputMethod.predictorOllamaModel"), `<input id="im-predictor-ollama-model" name="predictorOllamaModel" type="text" value="${escapeAttribute(predictor.runner?.model ?? "")}" placeholder="sancho-mistral-3b:latest">`)}
           <div class="input-method-actions">
             <button class="primary-button" type="submit" data-save-rime-settings>${escapeHtml(t("inputMethod.save"))}</button>
             <button type="button" data-open-rime-directory>${escapeHtml(t("inputMethod.openDirectory"))}</button>
@@ -382,7 +382,7 @@ function renderInputMethodColorOptions(currentValue, t) {
 }
 
 function renderPredictorRunnerOptions(currentValue, t) {
-  return ["none", "http", "ollama"].map((provider) =>
+  return ["none", "http", "ollama", "deepseek-flash"].map((provider) =>
     `<option value="${escapeAttribute(provider)}"${provider === currentValue ? " selected" : ""}>${escapeHtml(displayValue("inputMethod", `runner.${provider}`, t))}</option>`
   ).join("");
 }

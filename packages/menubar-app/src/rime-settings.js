@@ -534,7 +534,7 @@ function normalizeRunnerSettingBlock(input) {
   };
   const provider = String(raw.provider ?? "none").trim().toLowerCase();
   return {
-    provider: ["none", "http", "ollama"].includes(provider) ? provider : "none",
+    provider: ["none", "http", "ollama", "deepseek-flash"].includes(provider) ? provider : "none",
     endpoint: optionalString(raw.endpoint),
     ollamaModel: optionalString(raw.ollamaModel ?? raw.ollama_model),
     ollamaEndpoint: optionalString(raw.ollamaEndpoint ?? raw.ollama_endpoint),

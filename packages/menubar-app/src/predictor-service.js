@@ -328,7 +328,7 @@ class LocalPredictorService {
     }
     recordPrediction({
       code: input.code,
-      candN: (Array.isArray(input.candidates) ? input.candidates : []).length,
+      candN: normalizeCandidates(input.candidates).length,
       runner: runnerPrediction?.mode ?? prediction.mode,
       latMs: null,
       cacheHit: Boolean(runnerPrediction),

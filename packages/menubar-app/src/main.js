@@ -238,6 +238,12 @@ function buildMenu() {
       }
     },
     {
+      label: translator.t("rimeSettingsTitle"),
+      click: () => {
+        void showInputMethodSettings();
+      }
+    },
+    {
       label: translator.t("setupInputMethod"),
       click: () => {
         void setupInputMethod();
